@@ -11,6 +11,3 @@ test-results/
 .env
 .env.*
 !.env.example
-
-# Design reference supplied for implementation; not part of the extension.
-音频轻转：现代音频转换界面.png
