@@ -2,6 +2,7 @@
 
 一个在 **Microsoft Edge 浏览器内本地运行** 的音乐格式转换扩展。采用浅蓝色界面，支持拖拽上传、批量队列、实时进度、结果试听、单曲下载、ZIP 打包、转换记录与深色模式。
 
+![转音匣 YinCrate 界面预览](docs/preview.png)
 ![转音匣 YinCrate 界面预览](docs/preview-1.png)
 ![转音匣 YinCrate 界面预览](docs/preview-2.png)
 
