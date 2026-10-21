@@ -14,6 +14,7 @@ import {
   Disc3,
   FileMusic,
   FolderOpen,
+  Github,
   Headphones,
   History,
   House,
@@ -740,6 +741,16 @@ function App() {
               >
                 <CircleHelp size={19} />
               </button>
+              <a
+                className="icon-button"
+                href="https://github.com/451040731/YinCrate"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="GitHub 项目仓库"
+                title="GitHub · YinCrate"
+              >
+                <Github size={19} />
+              </a>
             </div>
           </header>
 
@@ -1481,9 +1492,10 @@ function App() {
               <AudioLines size={13} />
               让音乐，自由流动。
             </span>
-            <span>
+            <span className="footer-product">
               YINCRATE <i /> 音乐格式转换工具
             </span>
+            <p className="footer-author">作者：猴子称大王（451040731）</p>
           </footer>
         </main>
       </div>
