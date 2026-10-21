@@ -7,7 +7,7 @@
 
 ## 安装使用
 
-**直接安装：** [下载 Edge 扩展安装包](https://github.com/451040731/YinCrate/blob/main/release/YinCrate-v1.0.0-edge.zip)，解压后按下列步骤加载。
+**直接安装：** [下载 Edge 扩展安装包](https://github.com/451040731/YinCrate/blob/main/release)，解压后按下列步骤加载。
 
 本地构建会生成 `dist/` 文件夹和 `release/YinCrate-v1.0.0-edge.zip`。源码仓库不包含 `dist/` 和依赖；如需从源码安装，请先执行开发章节中的 `npm ci` 和 `npm run build`。
 
