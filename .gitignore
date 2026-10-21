@@ -1,0 +1,16 @@
+node_modules/
+dist/
+release/*
+!release/YinCrate-v1.0.0-edge.zip
+public/engine/
+public/licenses/
+public/icons/*.png
+test-results/
+.test-profile/
+*.log
+.env
+.env.*
+!.env.example
+
+# Design reference supplied for implementation; not part of the extension.
+音频轻转：现代音频转换界面.png

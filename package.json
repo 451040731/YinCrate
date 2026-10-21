@@ -1,0 +1,29 @@
+{
+  "name": "yincrate",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "转音匣 YinCrate — 在本地，让音乐自由流动。",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "node scripts/prepare.mjs && vite build && node scripts/package.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
+    "@noble/ciphers": "2.4.0",
+    "jszip": "3.10.1",
+    "lucide-react": "0.468.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "6.1.2",
+    "vite": "8.3.5",
+    "playwright": "1.64.1",
+    "sharp": "0.35.5"
+  }
+}
