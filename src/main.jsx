@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleHelp,
+  CircleUserRound,
   Clock3,
   CloudUpload,
   Disc3,
@@ -1488,14 +1489,17 @@ function App() {
             )}
           </div>
           <footer className="main-footer">
-            <span>
-              <AudioLines size={13} />
+            <span className="footer-tagline">
+              <AudioLines size={14} aria-hidden="true" />
               让音乐，自由流动。
             </span>
             <span className="footer-product">
               YINCRATE <i /> 音乐格式转换工具
             </span>
-            <p className="footer-author">作者：猴子称大王（451040731）</p>
+            <p className="footer-author">
+              <CircleUserRound size={14} strokeWidth={1.8} aria-hidden="true" />
+              <span>作者：猴子称大王（451040731）</span>
+            </p>
           </footer>
         </main>
       </div>
