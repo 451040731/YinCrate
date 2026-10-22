@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS = {
   preserve: true,
   autoDownload: false,
   theme: "light",
+  language: "zh",
 };
 export function extension(name) {
   return name.split(".").pop()?.toLowerCase() || "";

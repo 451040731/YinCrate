@@ -1,7 +1,7 @@
 node_modules/
 dist/
 release/*
-!release/YinCrate-v1.0.0-edge.zip
+!release/YinCrate-v*-edge.zip
 public/engine/
 public/licenses/
 public/icons/*.png

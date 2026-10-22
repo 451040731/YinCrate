@@ -1,6 +1,6 @@
 {
   "name": "yincrate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "转音匣 YinCrate — 在本地，让音乐自由流动。",
@@ -9,6 +9,7 @@
     "build": "node scripts/prepare.mjs && vite build && node scripts/package.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.mjs",
+    "test:ui": "node tests/ui.e2e.mjs",
     "test:e2e": "node tests/e2e.mjs"
   },
   "dependencies": {

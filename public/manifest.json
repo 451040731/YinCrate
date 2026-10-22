@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "转音匣 YinCrate · 本地音乐转换",
   "short_name": "转音匣",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "离线转换 NCM、OGG、FLAC、WAV、M4A 等音乐，支持拖拽、批量处理、320 kbps MP3 和 FLAC/WAV 无损输出。",
   "minimum_chrome_version": "114",
   "permissions": ["downloads"],

@@ -10,7 +10,7 @@
 
 **直接安装：** [下载 Edge 扩展安装包](https://github.com/451040731/YinCrate/blob/main/release)，解压后按下列步骤加载。
 
-本地构建会生成 `dist/` 文件夹和 `release/YinCrate-v1.0.0-edge.zip`。源码仓库不包含 `dist/` 和依赖；如需从源码安装，请先执行开发章节中的 `npm ci` 和 `npm run build`。
+本地构建会生成 `dist/` 文件夹和 `release/YinCrate-v1.0.1-edge.zip`。源码仓库不包含 `dist/` 和依赖；如需从源码安装，请先执行开发章节中的 `npm ci` 和 `npm run build`。
 
 1. 如使用 ZIP，请先解压到固定目录。
 2. 在 Edge 地址栏输入 `edge://extensions`。
@@ -19,6 +19,8 @@
 5. 在扩展菜单中点击“转音匣”，即可在独立标签页中打开工作台。可将扩展固定到工具栏。
 
 将音乐文件拖入窗口，选择输出格式，点击“开始转换”。完成后可试听、逐个下载或打包下载。扩展内下载默认位于浏览器下载目录的 `YinCrate/` 文件夹；最终位置仍由浏览器下载设置决定。转换时请保持工作台标签页打开。
+
+v1.0.1 支持中文和英文界面。顶部深色模式按钮前可切换语言，默认中文；语言选择会保存在当前浏览器中，刷新或重新打开后继续沿用。
 
 ## 支持范围与音质
 
@@ -69,3 +71,9 @@ npm run test:e2e
 Windows 上端到端测试默认使用已安装的 Edge，在独立临时扩展环境中运行真实 WASM 引擎。其他系统需先执行 `npx playwright install chromium`。测试使用自行生成的音频及合成 NCM 容器，检查格式输出、原始字节保留、无损 PCM 比对、记录持久化、取消重试、错误文件及下载。没有拿到用户真实下载的 NCM/OGG 样本，因此不能替代对特定平台版本文件的兼容性验证。
 
 源码入口：`src/main.jsx`；音频引擎：`src/lib/converter.js`；NCM 解析：`src/lib/ncm.js`；扩展清单：`public/manifest.json`。开源组件及对应源码见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。当前交付为可侧载扩展，未提交到 Edge 商店。
+
+## 微信打赏
+
+如果转音匣对你有帮助，欢迎微信扫码打赏，支持项目持续维护与更新。
+
+<img src="docs/wx.jpg" alt="微信打赏二维码" width="280" />

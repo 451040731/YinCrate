@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { version as APP_VERSION } from "../package.json";
+import { message, normalizeLanguage, translate } from "./lib/i18n.js";
 import {
   ArrowDownToLine,
   ArrowRight,
@@ -71,8 +73,8 @@ const FORMAT_NAMES = {
 };
 const readyStatus = (status) =>
   ["waiting", "error", "cancelled"].includes(status);
-const dateLabel = (time) =>
-  new Intl.DateTimeFormat("zh-CN", {
+const dateLabel = (time, language) =>
+  new Intl.DateTimeFormat(language === "en" ? "en-US" : "zh-CN", {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -92,6 +94,7 @@ function readSettings() {
       value.sampleRate = "source";
     if (!["source", "1", "2"].includes(value.channels))
       value.channels = "source";
+    value.language = normalizeLanguage(value.language);
     return value;
   } catch {
     return DEFAULT_SETTINGS;
@@ -148,56 +151,52 @@ function Toggle({ checked, onChange, label, detail, disabled }) {
     </label>
   );
 }
-function QualityControls({ settings, change, disabled }) {
+function QualityControls({ settings, change, disabled, t }) {
   return (
     <>
       <div className="settings-grid">
         <Select
-          label="MP3 比特率"
+          label={t("MP3 比特率")}
           value={settings.bitrate}
           onChange={(bitrate) => change({ bitrate })}
           disabled={disabled || settings.format !== "mp3"}
         >
-          <option value="320">320 kbps · 高音质</option>
-          <option value="256">256 kbps · 精选音质</option>
-          <option value="192">192 kbps · 均衡</option>
-          <option value="128">128 kbps · 小体积</option>
+          <option value="320">{t("320 kbps · 高音质")}</option>
+          <option value="256">{t("256 kbps · 精选音质")}</option>
+          <option value="192">{t("192 kbps · 均衡")}</option>
+          <option value="128">{t("128 kbps · 小体积")}</option>
         </Select>
         <Select
-          label="采样率"
+          label={t("采样率")}
           value={settings.sampleRate}
           onChange={(sampleRate) => change({ sampleRate })}
           disabled={disabled || settings.format === "original"}
         >
-          <option value="source">跟随源文件</option>
+          <option value="source">{t("跟随源文件")}</option>
           <option value="44100">44,100 Hz</option>
           <option value="48000">48,000 Hz</option>
         </Select>
         <Select
-          label="声道"
+          label={t("声道")}
           value={settings.channels}
           onChange={(channels) => change({ channels })}
           disabled={disabled || settings.format === "original"}
         >
-          <option value="source">跟随源文件</option>
-          <option value="2">立体声</option>
-          <option value="1">单声道</option>
+          <option value="source">{t("跟随源文件")}</option>
+          <option value="2">{t("立体声")}</option>
+          <option value="1">{t("单声道")}</option>
         </Select>
       </div>
       <Toggle
         checked={settings.preserve}
         onChange={(preserve) => change({ preserve })}
-        label="同格式时保留原音"
-        detail="格式相同且无需调整参数时，直接保留音频，避免重复编码。"
+        label={t("同格式时保留原音")}
+        detail={t("格式相同且无需调整参数时，直接保留音频，避免重复编码。")}
         disabled={disabled}
       />
       <div className="quality-note">
         <Info size={17} />
-        <p>
-          MP3 是有损格式，320 kbps 可尽量保留听感。需要无损请选 FLAC /
-          WAV，并跟随源采样率与声道；调整这些参数会改变音频数据，转为无损格式不会提升原音质。原始音频模式可直接提取
-          NCM 内的 MP3 / FLAC。
-        </p>
+        <p>{t("MP3 是有损格式，320 kbps 可尽量保留听感。需要无损请选 FLAC / WAV，并跟随源采样率与声道；调整这些参数会改变音频数据，转为无损格式不会提升原音质。原始音频模式可直接提取 NCM 内的 MP3 / FLAC。")}</p>
       </div>
     </>
   );
@@ -207,6 +206,7 @@ function App() {
   const [view, setView] = useState("convert");
   const [settings, setSettings] = useState(readSettings);
   const settingsRef = useRef(settings);
+  const t = (key, values) => translate(settingsRef.current.language, key, values);
   const [items, setItems] = useState([]);
   const itemsRef = useRef([]);
   const [history, setHistory] = useState([]);
@@ -226,9 +226,9 @@ function App() {
   const controller = useRef(null);
   const [confirm, setConfirm] = useState(null);
 
-  function notify(message, type = "info") {
+  function notify(key, type = "info", values) {
     clearTimeout(toastTimer.current);
-    setToast({ message, type });
+    setToast({ message: typeof key === "string" ? message(key, values) : key, type });
     toastTimer.current = setTimeout(() => setToast(null), 6500);
   }
   function updateItems(fn) {
@@ -244,7 +244,7 @@ function App() {
   function changeSettings(patch) {
     if (
       busyRef.current &&
-      Object.keys(patch).some((k) => !["theme", "autoDownload"].includes(k))
+      Object.keys(patch).some((k) => !["theme", "autoDownload", "language"].includes(k))
     )
       return;
     setSettings((previous) => {
@@ -255,6 +255,11 @@ function App() {
   }
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
+    document.documentElement.lang = settings.language === "en" ? "en" : "zh-CN";
+    document.title = t("转音匣 YinCrate · 让音乐自由流动");
+    document.querySelector('meta[name="description"]').content = t(
+      "转音匣 YinCrate，在本地转换 NCM、OGG、FLAC、WAV 等音乐格式。",
+    );
     try {
       localStorage.setItem("yincrate-settings", JSON.stringify(settings));
     } catch {
@@ -304,16 +309,19 @@ function App() {
       const ext = extension(file.name);
       if (!INPUT_FORMATS.includes(ext)) {
         problems.push(
-          `${file.name}：${ext === "egg" ? "EGG 不是受支持的音频，请使用 OGG 原文件" : "暂不支持此格式"}`,
+          message("{name}：{reason}", {
+            name: file.name,
+            reason: message(ext === "egg" ? "EGG 不是受支持的音频，请使用 OGG 原文件" : "暂不支持此格式"),
+          }),
         );
         continue;
       }
       if (!file.size) {
-        problems.push(`${file.name}：文件为空`);
+        problems.push(message("{name}：文件为空", { name: file.name }));
         continue;
       }
       if (file.size > MAX_FILE_SIZE) {
-        problems.push(`${file.name}：超过单个 200 MB 上限`);
+        problems.push(message("{name}：超过单个 200 MB 上限", { name: file.name }));
         continue;
       }
       if (totalSize + file.size > MAX_QUEUE_SIZE) {
@@ -328,7 +336,7 @@ function App() {
             x.file.lastModified === file.lastModified,
         )
       ) {
-        problems.push(`${file.name}：已在列表中`);
+        problems.push(message("{name}：已在列表中", { name: file.name }));
         continue;
       }
       if (
@@ -354,14 +362,16 @@ function App() {
     if (accepted.length) {
       setView("convert");
       if (!problems.length)
-        notify(`已添加 ${accepted.length} 首音乐，准备好就开始吧。`);
+        notify("已添加 {count} 首音乐，准备好就开始吧。", "info", { count: accepted.length });
     }
     if (problems.length)
       notify(
-        problems.slice(0, 2).join("；") +
-          (problems.length > 2
-            ? `；另有 ${problems.length - 2} 个文件未添加`
-            : ""),
+        [
+          ...problems.slice(0, 2),
+          ...(problems.length > 2
+            ? [message("另有 {count} 个文件未添加", { count: problems.length - 2 })]
+            : []),
+        ],
         "error",
       );
     // Metadata is optional; decoding here would hold an entire second PCM copy in memory.
@@ -480,11 +490,12 @@ function App() {
       if (abort.signal.aborted) notify("已停止转换，已完成的结果仍可下载。");
       else if (failed)
         notify(
-          `${completed} 首完成，${failed} 首未完成。可查看文件下方的原因并重试。`,
+          "{completed} 首完成，{failed} 首未完成。可查看文件下方的原因并重试。",
           "error",
+          { completed, failed },
         );
       else if (completed)
-        notify(`${completed} 首音乐转换完成，去听听吧。`, "success");
+        notify("{count} 首音乐转换完成，去听听吧。", "success", { count: completed });
     }
   }
   function stop() {
@@ -530,7 +541,9 @@ function App() {
       await downloadBlob(result.blob, result.name);
       notify("下载已开始。", "success");
     } catch (error) {
-      notify(`下载未开始：${error.message || "请检查浏览器下载设置"}`, "error");
+      notify("下载未开始：{reason}", "error", {
+        reason: message(error.message || "请检查浏览器下载设置"),
+      });
     }
   }
   async function downloadZip(records) {
@@ -553,7 +566,7 @@ function App() {
         blob,
         `YinCrate-${new Date().toISOString().slice(0, 10)}.zip`,
       );
-      notify(`已打包 ${records.length} 首音乐，下载已开始。`, "success");
+      notify("已打包 {count} 首音乐，下载已开始。", "success", { count: records.length });
     } catch {
       notify("打包未完成，可能是可用内存不足。请逐个下载。", "error");
     } finally {
@@ -598,9 +611,7 @@ function App() {
       }
       return new File(
         [buffer],
-        ["晴日序曲 · 示例.wav", "蓝色回声 · 示例.wav", "晚风来信 · 示例.wav"][
-          index
-        ],
+        t(["晴日序曲 · 示例.wav", "蓝色回声 · 示例.wav", "晚风来信 · 示例.wav"][index]),
         { type: "audio/wav", lastModified: 1 },
       );
     });
@@ -631,7 +642,7 @@ function App() {
   const done = items.filter((x) => x.status === "done");
   const totalSize = items.reduce((sum, item) => sum + item.file.size, 0);
   const historySize = history.reduce((sum, record) => sum + record.size, 0);
-  const formatName = FORMAT_NAMES[settings.format];
+  const formatName = t(FORMAT_NAMES[settings.format]);
 
   return (
     <div
@@ -651,30 +662,29 @@ function App() {
           <button
             className="brand"
             onClick={() => setView("convert")}
-            aria-label="转音匣首页"
+            aria-label={t("转音匣首页")}
           >
             <Logo />
             <span className="brand-type">
-              <strong>
-                转音匣<span className="brand-dot">.</span>
+              <strong>{t("转音匣")}<span className="brand-dot">.</span>
               </strong>
               <span>YINCRATE</span>
             </span>
           </button>
-          <div className="workspace-label">你的音乐工作台</div>
-          <nav aria-label="主导航">
+          <div className="workspace-label">{t("你的音乐工作台")}</div>
+          <nav aria-label={t("主导航")}>
             {NAV.map(({ id, icon: Icon, title }, i) => (
               <React.Fragment key={id}>
                 {i === 2 && <div className="nav-divider" />}
                 <button
                   className={`nav-item ${view === id ? "active" : ""}`}
                   onClick={() => setView(id)}
-                  aria-label={title}
-                  title={title}
+                  aria-label={t(title)}
+                  title={t(title)}
                   aria-current={view === id ? "page" : undefined}
                 >
                   <Icon size={20} strokeWidth={1.8} />
-                  <span>{title}</span>
+                  <span>{t(title)}</span>
                   {id === "history" && history.length > 0 && (
                     <span className="nav-count">{history.length}</span>
                   )}
@@ -688,16 +698,14 @@ function App() {
               <span className="privacy-icon">
                 <ShieldCheck size={22} />
               </span>
-              <strong>只在本地，安心转换</strong>
-              <p>你的音乐始终留在你的设备上。</p>
+              <strong>{t("只在本地，安心转换")}</strong>
+              <p>{t("你的音乐始终留在你的设备上。")}</p>
               <span className="privacy-status">
-                <i />
-                无需联网 · 无需上传
-              </span>
+                <i />{t("无需联网 · 无需上传")}</span>
             </div>
             <div className="sidebar-foot">
               <span>YinCrate</span>
-              <span>v1.0.0</span>
+              <span>v{APP_VERSION}</span>
             </div>
           </div>
         </aside>
@@ -705,15 +713,26 @@ function App() {
         <main className="main">
           <header className="topbar">
             <div className="breadcrumb">
-              <span>工作台</span>
+              <span>{t("工作台")}</span>
               <ChevronRight size={13} />
-              <strong>{NAV.find((x) => x.id === view).title}</strong>
+              <strong>{t(NAV.find((x) => x.id === view).title)}</strong>
             </div>
             <div className="topbar-actions">
               <span className="local-badge">
-                <i /> 本地运行
-              </span>
+                <i />{t("本地运行")}</span>
               <span className="topbar-divider" />
+              <label className="language-switch">
+                <span className="visually-hidden">{t("界面语言")}</span>
+                <select
+                  aria-label={t("界面语言")}
+                  value={settings.language}
+                  onChange={(event) => changeSettings({ language: event.target.value })}
+                >
+                  <option value="zh" lang="zh-CN">中文</option>
+                  <option value="en" lang="en">English</option>
+                </select>
+                <ChevronDown size={12} aria-hidden="true" />
+              </label>
               <button
                 className="icon-button"
                 onClick={() =>
@@ -722,10 +741,10 @@ function App() {
                   })
                 }
                 title={
-                  settings.theme === "dark" ? "切换浅色模式" : "切换深色模式"
+                  t(settings.theme === "dark" ? "切换浅色模式" : "切换深色模式")
                 }
                 aria-label={
-                  settings.theme === "dark" ? "切换浅色模式" : "切换深色模式"
+                  t(settings.theme === "dark" ? "切换浅色模式" : "切换深色模式")
                 }
               >
                 {settings.theme === "dark" ? (
@@ -737,8 +756,8 @@ function App() {
               <button
                 className="icon-button"
                 onClick={() => setView("help")}
-                aria-label="使用帮助"
-                title="使用帮助"
+                aria-label={t("使用帮助")}
+                title={t("使用帮助")}
               >
                 <CircleHelp size={19} />
               </button>
@@ -747,7 +766,7 @@ function App() {
                 href="https://github.com/451040731/YinCrate"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="GitHub 项目仓库"
+                aria-label={t("GitHub 项目仓库")}
                 title="GitHub · YinCrate"
               >
                 <Github size={19} />
@@ -763,10 +782,9 @@ function App() {
                     <span className="eyebrow">
                       <span /> EVERY NOTE, A NEW POSSIBILITY
                     </span>
-                    <h1>
-                      好音乐，<span>换个格式听。</span>
+                    <h1>{t("好音乐，")}<span>{t("换个格式听。")}</span>
                     </h1>
-                    <p>把格式交给转音匣，把好听的留给自己。</p>
+                    <p>{t("把格式交给转音匣，把好听的留给自己。")}</p>
                   </div>
                   <div className="heading-art" aria-hidden="true">
                     <div className="record">
@@ -783,7 +801,7 @@ function App() {
 
                 <section
                   className={`dropzone ${dragging ? "dragging" : ""}`}
-                  aria-label="音乐文件上传区域"
+                  aria-label={t("音乐文件上传区域")}
                 >
                   <div className="dropzone-corner top-left" />
                   <div className="dropzone-corner bottom-right" />
@@ -794,17 +812,15 @@ function App() {
                     </span>
                   </div>
                   <h2>
-                    {dragging
+                    {t(dragging
                       ? "松开鼠标，让音乐进来"
-                      : "拖入音乐，开启格式自由"}
+                      : "拖入音乐，开启格式自由")}
                   </h2>
-                  <p>
-                    将音频文件拖到这里，或{" "}
+                  <p>{t("将音频文件拖到这里，或")}{" "}
                     <button
                       className="text-button"
                       onClick={() => fileInput.current.click()}
-                    >
-                      点击选择文件 <ArrowRight size={13} />
+                    >{t("点击选择文件")}<ArrowRight size={13} />
                     </button>
                   </p>
                   <div className="format-chips">
@@ -818,14 +834,10 @@ function App() {
                     ))}
                     <span
                       className="more-formats"
-                      title="也支持 M4A、AAC、AIFF、OPUS、WMA"
-                    >
-                      + 更多
-                    </span>
+                      title={t("也支持 M4A、AAC、AIFF、OPUS、WMA")}
+                    >{t("+ 更多")}</span>
                   </div>
-                  <span className="dropzone-caption">
-                    支持批量添加 <span>·</span> 单个文件最大 200 MB
-                  </span>
+                  <span className="dropzone-caption">{t("支持批量添加")}<span>·</span>{t("单个文件最大 200 MB")}</span>
                 </section>
 
                 <section
@@ -834,13 +846,12 @@ function App() {
                 >
                   <div className="section-bar">
                     <div className="section-title">
-                      <h2 id="queue-title">转换列表</h2>
+                      <h2 id="queue-title">{t("转换列表")}</h2>
                       <span className="count-badge">
                         {items.length.toString().padStart(2, "0")}
                       </span>
                       {items.length > 0 && (
-                        <span className="queue-size">
-                          共 {prettySize(totalSize)}
+                        <span className="queue-size">{t("共 {size}", { size: prettySize(totalSize) })}
                         </span>
                       )}
                     </div>
@@ -849,8 +860,7 @@ function App() {
                         className="subtle-button add-button"
                         onClick={() => fileInput.current.click()}
                       >
-                        <Plus size={15} /> 添加文件
-                      </button>
+                        <Plus size={15} />{t("添加文件")}</button>
                       <span className="action-divider" />
                       <button
                         className="subtle-button"
@@ -860,8 +870,7 @@ function App() {
                           updateItems(() => []);
                         }}
                       >
-                        <Trash2 size={14} /> 清空列表
-                      </button>
+                        <Trash2 size={14} />{t("清空列表")}</button>
                     </div>
                   </div>
                   {items.length === 0 ? (
@@ -870,11 +879,8 @@ function App() {
                         <ListMusicIcon />
                       </div>
                       <div>
-                        <strong>你的下一首好音乐，就从这里开始</strong>
-                        <p>
-                          添加音频文件，或
-                          <button className="text-button" onClick={addDemos}>
-                            用示例音频试一试 <ArrowRight size={12} />
+                        <strong>{t("你的下一首好音乐，就从这里开始")}</strong>
+                        <p>{t("添加音频文件，或")}<button className="text-button" onClick={addDemos}>{t("用示例音频试一试")}<ArrowRight size={12} />
                           </button>
                         </p>
                       </div>
@@ -915,7 +921,7 @@ function App() {
                               )}
                             </div>
                             {item.error && (
-                              <p className="file-error">{item.error}</p>
+                              <p className="file-error">{t(item.error)}</p>
                             )}
                           </div>
                           <span className={`conversion-badge ${item.ext}`}>
@@ -924,7 +930,7 @@ function App() {
                             {item.result
                               ? item.result.format.toUpperCase()
                               : settings.format === "original"
-                                ? "原音"
+                                ? t("原音")
                                 : formatName}
                           </span>
                           <div className="file-status">
@@ -932,13 +938,13 @@ function App() {
                               <>
                                 <span className="converting-label">
                                   <LoaderCircle className="spin" size={13} />
-                                  {item.message}
+                                  {t(item.message)}
                                   <span>{item.progress}%</span>
                                 </span>
                                 <div
                                   className="progress-track"
                                   role="progressbar"
-                                  aria-label={`${item.file.name}转换进度`}
+                                  aria-label={t("{name}转换进度", { name: item.file.name })}
                                   aria-valuenow={item.progress}
                                   aria-valuemin={0}
                                   aria-valuemax={100}
@@ -951,28 +957,20 @@ function App() {
                             ) : item.status === "done" ? (
                               <>
                                 <span className="status-done">
-                                  <Check size={14} />
-                                  转换完成
-                                </span>
-                                <small title={item.result.method}>
-                                  {item.result.method}
+                                  <Check size={14} />{t("转换完成")}</span>
+                                <small title={t(item.result.method)}>
+                                  {t(item.result.method)}
                                 </small>
                               </>
                             ) : item.status === "error" ? (
                               <span className="status-error">
-                                <Info size={14} />
-                                转换失败
-                              </span>
+                                <Info size={14} />{t("转换失败")}</span>
                             ) : item.status === "cancelled" ? (
                               <span className="status-wait">
-                                <Square size={12} />
-                                已取消
-                              </span>
+                                <Square size={12} />{t("已取消")}</span>
                             ) : (
                               <span className="status-wait">
-                                <Clock3 size={14} />
-                                等待转换
-                              </span>
+                                <Clock3 size={14} />{t("等待转换")}</span>
                             )}
                           </div>
                           <div className="file-actions">
@@ -983,8 +981,8 @@ function App() {
                                   onClick={() =>
                                     preview(item.id, item.result.blob)
                                   }
-                                  aria-label={`${playing === item.id ? "停止试听" : "试听"} ${item.file.name}`}
-                                  title="试听"
+                                  aria-label={t(playing === item.id ? "停止试听 {name}" : "试听 {name}", { name: item.file.name })}
+                                  title={t("试听")}
                                 >
                                   {playing === item.id ? (
                                     <Pause size={15} fill="currentColor" />
@@ -995,8 +993,8 @@ function App() {
                                 <button
                                   className="icon-button download-button"
                                   onClick={() => download(item.result)}
-                                  title="下载音乐"
-                                  aria-label={`下载 ${item.result.name}`}
+                                  title={t("下载音乐")}
+                                  aria-label={t("下载 {name}", { name: item.result.name })}
                                 >
                                   <ArrowDownToLine size={18} />
                                 </button>
@@ -1010,11 +1008,11 @@ function App() {
                                 className="icon-button row-play"
                                 onClick={() => run([item.id])}
                                 disabled={busy}
-                                aria-label={`转换 ${item.file.name}`}
+                                aria-label={t("转换 {name}", { name: item.file.name })}
                                 title={
-                                  item.status === "error"
+                                  t(item.status === "error"
                                     ? "重新转换"
-                                    : "转换此文件"
+                                    : "转换此文件")
                                 }
                               >
                                 {item.status === "error" ||
@@ -1029,8 +1027,8 @@ function App() {
                               className="icon-button remove-button"
                               onClick={() => removeItem(item)}
                               disabled={item.status === "converting"}
-                              aria-label={`移除 ${item.file.name}`}
-                              title="移除文件"
+                              aria-label={t("移除 {name}", { name: item.file.name })}
+                              title={t("移除文件")}
                             >
                               <X size={17} />
                             </button>
@@ -1042,9 +1040,7 @@ function App() {
                   {done.length > 0 && (
                     <div className="completed-summary">
                       <span>
-                        <CheckCheck size={15} />
-                        已完成 {done.length} / {items.length} 首音乐
-                      </span>
+                        <CheckCheck size={15} />{t("已完成 {completed} / {total} 首音乐", { completed: done.length, total: items.length })}</span>
                       <button
                         className="text-button"
                         disabled={zipBusy}
@@ -1054,9 +1050,7 @@ function App() {
                           <LoaderCircle className="spin" size={14} />
                         ) : (
                           <ArrowDownToLine size={14} />
-                        )}
-                        打包下载全部
-                      </button>
+                        )}{t("打包下载全部")}</button>
                     </div>
                   )}
                 </section>
@@ -1064,31 +1058,31 @@ function App() {
                 <section className="conversion-panel">
                   <div className="output-options">
                     <Select
-                      label="输出格式"
+                      label={t("输出格式")}
                       value={settings.format}
                       onChange={(format) => changeSettings({ format })}
                       disabled={busy}
                     >
                       <option value="mp3">MP3</option>
-                      <option value="flac">FLAC · 无损</option>
-                      <option value="wav">WAV · 无损</option>
-                      <option value="original">原始音频</option>
+                      <option value="flac">{t("FLAC · 无损")}</option>
+                      <option value="wav">{t("WAV · 无损")}</option>
+                      <option value="original">{t("原始音频")}</option>
                     </Select>
                     <button
                       className="advanced-button"
                       onClick={() => setAdvanced(true)}
                     >
                       <SlidersHorizontal size={17} />
-                      <span>高级设置</span>
+                      <span>{t("高级设置")}</span>
                     </button>
                   </div>
                   <div className="start-area">
                     <span className="quality-summary">
                       {settings.format === "mp3"
-                        ? `${settings.bitrate} kbps · 高音质`
+                        ? t("{bitrate} kbps · 高音质", { bitrate: settings.bitrate })
                         : settings.format === "original"
-                          ? "保留音频原始编码"
-                          : "跟随源音质"}
+                          ? t("保留音频原始编码")
+                          : t("跟随源音质")}
                       <ChevronDown size={12} />
                     </span>
                     {busy ? (
@@ -1096,18 +1090,14 @@ function App() {
                         className="primary-button stop-button"
                         onClick={stop}
                       >
-                        <Square size={17} fill="currentColor" />
-                        停止转换
-                      </button>
+                        <Square size={17} fill="currentColor" />{t("停止转换")}</button>
                     ) : (
                       <button
                         className="primary-button"
                         onClick={() => run()}
                         disabled={pending === 0}
                       >
-                        <AudioLines size={20} />
-                        开始转换
-                        {pending > 0 && (
+                        <AudioLines size={20} />{t("开始转换")}{pending > 0 && (
                           <span className="button-count">{pending}</span>
                         )}
                         <ArrowRight size={17} />
@@ -1118,11 +1108,11 @@ function App() {
                 <div className="quality-footnote">
                   <ShieldCheck size={13} />
                   <span>
-                    {settings.format === "mp3"
+                    {t(settings.format === "mp3"
                       ? "高音质 MP3 输出。需要无损？试试 FLAC / WAV。"
                       : settings.format === "original"
                         ? "直接保留原始音频字节，NCM 将提取为内部的 MP3 / FLAC。"
-                        : "无损编码保留可表示的音频精度；采样率与声道默认跟随源文件。"}
+                        : "无损编码保留可表示的音频精度；采样率与声道默认跟随源文件。")}
                   </span>
                 </div>
               </>
@@ -1135,10 +1125,9 @@ function App() {
                     <span className="eyebrow">
                       <span /> YOUR MUSIC, REIMAGINED
                     </span>
-                    <h1>
-                      每一次转换，<span>都有迹可循。</span>
+                    <h1>{t("每一次转换，")}<span>{t("都有迹可循。")}</span>
                     </h1>
-                    <p>结果保存在当前浏览器，可随时回来试听、下载。</p>
+                    <p>{t("结果保存在当前浏览器，可随时回来试听、下载。")}</p>
                   </div>
                   <History
                     className="page-watermark"
@@ -1148,24 +1137,22 @@ function App() {
                 </section>
                 <div className="history-overview">
                   <div>
-                    <span>累计转换</span>
+                    <span>{t("累计转换")}</span>
                     <strong>
                       {history.length}
-                      <small> 首音乐</small>
+                      <small>{t("首音乐")}</small>
                     </strong>
                   </div>
                   <div>
-                    <span>本地结果占用</span>
+                    <span>{t("本地结果占用")}</span>
                     <strong>{prettySize(historySize)}</strong>
                   </div>
                   <span className="history-local">
-                    <LockKeyhole size={15} />
-                    仅保存在这台设备
-                  </span>
+                    <LockKeyhole size={15} />{t("仅保存在这台设备")}</span>
                 </div>
                 <div className="section-bar">
                   <div className="section-title">
-                    <h2>全部记录</h2>
+                    <h2>{t("全部记录")}</h2>
                     <span className="count-badge">
                       {history.length.toString().padStart(2, "0")}
                     </span>
@@ -1177,7 +1164,7 @@ function App() {
                       onClick={() => downloadZip(history)}
                     >
                       <ArrowDownToLine size={15} />
-                      {zipBusy ? "正在打包" : "打包下载"}
+                      {t(zipBusy ? "正在打包" : "打包下载")}
                     </button>
                     <button
                       className="subtle-button"
@@ -1195,9 +1182,7 @@ function App() {
                         })
                       }
                     >
-                      <Trash2 size={14} />
-                      清空记录
-                    </button>
+                      <Trash2 size={14} />{t("清空记录")}</button>
                   </div>
                 </div>
                 {history.length === 0 ? (
@@ -1205,14 +1190,12 @@ function App() {
                     <span>
                       <History size={35} strokeWidth={1.4} />
                     </span>
-                    <h2>还没有转换记录</h2>
-                    <p>每一首转换完成的音乐，都会在这里等你。</p>
+                    <h2>{t("还没有转换记录")}</h2>
+                    <p>{t("每一首转换完成的音乐，都会在这里等你。")}</p>
                     <button
                       className="secondary-button"
                       onClick={() => setView("convert")}
-                    >
-                      去转换第一首
-                      <ArrowRight size={15} />
+                    >{t("去转换第一首")}<ArrowRight size={15} />
                     </button>
                   </div>
                 ) : (
@@ -1230,21 +1213,20 @@ function App() {
                             <i />
                             <span>{prettyTime(record.duration)}</span>
                             <i />
-                            <span>{dateLabel(record.createdAt)}</span>
+                            <span>{dateLabel(record.createdAt, settings.language)}</span>
                           </div>
                           <small
                             className="history-source"
                             title={record.sourceName}
-                          >
-                            来自 {record.sourceName}
+                          >{t("来自 {name}", { name: record.sourceName })}
                           </small>
                         </div>
-                        <span className="history-method">{record.method}</span>
+                        <span className="history-method">{t(record.method)}</span>
                         <div className="file-actions">
                           <button
                             className="icon-button row-play"
                             onClick={() => preview(record.id, record.blob)}
-                            aria-label={`试听 ${record.name}`}
+                            aria-label={t(playing === record.id ? "停止试听 {name}" : "试听 {name}", { name: record.name })}
                           >
                             {playing === record.id ? (
                               <Pause size={15} />
@@ -1255,7 +1237,7 @@ function App() {
                           <button
                             className="icon-button download-button"
                             onClick={() => download(record)}
-                            aria-label={`下载 ${record.name}`}
+                            aria-label={t("下载 {name}", { name: record.name })}
                           >
                             <ArrowDownToLine size={19} />
                           </button>
@@ -1272,7 +1254,7 @@ function App() {
                                 notify("记录删除失败，请重试。", "error");
                               }
                             }}
-                            aria-label={`删除记录 ${record.name}`}
+                            aria-label={t("删除记录 {name}", { name: record.name })}
                           >
                             <X size={17} />
                           </button>
@@ -1282,9 +1264,7 @@ function App() {
                   </div>
                 )}
                 <p className="history-hint">
-                  <Info size={14} />
-                  记录包含转换后的音频文件；清理浏览器数据或卸载扩展可能使其丢失，请及时下载收藏。
-                </p>
+                  <Info size={14} />{t("记录包含转换后的音频文件；清理浏览器数据或卸载扩展可能使其丢失，请及时下载收藏。")}</p>
               </>
             )}
 
@@ -1295,10 +1275,9 @@ function App() {
                     <span className="eyebrow">
                       <span /> MAKE IT YOURS
                     </span>
-                    <h1>
-                      好听，<span>也要合你心意。</span>
+                    <h1>{t("好听，")}<span>{t("也要合你心意。")}</span>
                     </h1>
-                    <p>设置自动保存，下次打开还是你喜欢的样子。</p>
+                    <p>{t("设置自动保存，下次打开还是你喜欢的样子。")}</p>
                   </div>
                   <SlidersHorizontal
                     className="page-watermark"
@@ -1308,9 +1287,7 @@ function App() {
                 </section>
                 {busy && (
                   <div className="inline-notice">
-                    <LoaderCircle size={16} className="spin" />
-                    转换进行中，音频参数将在结束后可修改。
-                  </div>
+                    <LoaderCircle size={16} className="spin" />{t("转换进行中，音频参数将在结束后可修改。")}</div>
                 )}
                 <section className="settings-card">
                   <div className="card-heading">
@@ -1318,24 +1295,25 @@ function App() {
                       <AudioLines size={19} />
                     </span>
                     <div>
-                      <h2>音频输出</h2>
-                      <p>为你的音乐选择合适的格式与品质。</p>
+                      <h2>{t("音频输出")}</h2>
+                      <p>{t("为你的音乐选择合适的格式与品质。")}</p>
                     </div>
                   </div>
                   <div className="default-format">
                     <Select
-                      label="默认输出格式"
+                      label={t("默认输出格式")}
                       value={settings.format}
                       onChange={(format) => changeSettings({ format })}
                       disabled={busy}
                     >
-                      <option value="mp3">MP3 · 广泛兼容</option>
-                      <option value="flac">FLAC · 无损压缩</option>
-                      <option value="wav">WAV · 无损 PCM</option>
-                      <option value="original">原始音频 · 直接保留</option>
+                      <option value="mp3">{t("MP3 · 广泛兼容")}</option>
+                      <option value="flac">{t("FLAC · 无损压缩")}</option>
+                      <option value="wav">{t("WAV · 无损 PCM")}</option>
+                      <option value="original">{t("原始音频 · 直接保留")}</option>
                     </Select>
                   </div>
                   <QualityControls
+                    t={t}
                     settings={settings}
                     change={changeSettings}
                     disabled={busy}
@@ -1347,21 +1325,21 @@ function App() {
                       <FolderOpen size={19} />
                     </span>
                     <div>
-                      <h2>下载与外观</h2>
-                      <p>让每次使用都更顺手。</p>
+                      <h2>{t("下载与外观")}</h2>
+                      <p>{t("让每次使用都更顺手。")}</p>
                     </div>
                   </div>
                   <Toggle
-                    label="转换完成后自动下载"
-                    detail="文件将保存到浏览器下载目录下的 YinCrate 文件夹。"
+                    label={t("转换完成后自动下载")}
+                    detail={t("文件将保存到浏览器下载目录下的 YinCrate 文件夹。")}
                     checked={settings.autoDownload}
                     onChange={(autoDownload) =>
                       changeSettings({ autoDownload })
                     }
                   />
                   <Toggle
-                    label="深色外观"
-                    detail="给深夜听歌的你，一个柔和的工作台。"
+                    label={t("深色外观")}
+                    detail={t("给深夜听歌的你，一个柔和的工作台。")}
                     checked={settings.theme === "dark"}
                     onChange={(checked) =>
                       changeSettings({ theme: checked ? "dark" : "light" })
@@ -1378,10 +1356,9 @@ function App() {
                     <span className="eyebrow">
                       <span /> A LITTLE HELP, A LOT OF MUSIC
                     </span>
-                    <h1>
-                      关于音乐，<span>关于转音匣。</span>
+                    <h1>{t("关于音乐，")}<span>{t("关于转音匣。")}</span>
                     </h1>
-                    <p>一些你可能想了解的事。</p>
+                    <p>{t("一些你可能想了解的事。")}</p>
                   </div>
                   <Headphones
                     className="page-watermark"
@@ -1392,19 +1369,16 @@ function App() {
                 <section className="about-card">
                   <Logo />
                   <div>
-                    <h2>
-                      转音匣 <span>YinCrate</span>
-                      <small>v1.0.0</small>
+                    <h2>{t("转音匣")}{settings.language === "zh" && <span>YinCrate</span>}
+                      <small>v{APP_VERSION}</small>
                     </h2>
-                    <p>一个小小的匣子，装下音乐的更多可能。</p>
+                    <p>{t("一个小小的匣子，装下音乐的更多可能。")}</p>
                   </div>
                   <span className="about-local">
-                    <ShieldCheck size={17} />
-                    本地处理
-                  </span>
+                    <ShieldCheck size={17} />{t("本地处理")}</span>
                 </section>
                 <div className="quick-guide">
-                  <h2>三步，听见新可能</h2>
+                  <h2>{t("三步，听见新可能")}</h2>
                   <div className="guide-steps">
                     {[
                       {
@@ -1426,8 +1400,8 @@ function App() {
                       <div key={title}>
                         <span className="step-number">0{i + 1}</span>
                         <Icon size={20} />
-                        <strong>{title}</strong>
-                        <p>{text}</p>
+                        <strong>{t(title)}</strong>
+                        <p>{t(text)}</p>
                       </div>
                     ))}
                   </div>
@@ -1465,23 +1439,21 @@ function App() {
                   ].map(([q, a]) => (
                     <details key={q}>
                       <summary>
-                        {q}
+                        {t(q)}
                         <Plus size={16} />
                       </summary>
-                      <p>{a}</p>
+                      <p>{t(a)}</p>
                     </details>
                   ))}
                 </div>
                 <div className="about-footer">
                   <span>Made for the love of music.</span>
-                  <span>
-                    由 FFmpeg.wasm 驱动 <span>·</span>{" "}
+                  <span>{t("由 FFmpeg.wasm 驱动")}<span>·</span>{" "}
                     <a
                       href="THIRD_PARTY_NOTICES.md"
                       target="_blank"
                       rel="noreferrer"
-                    >
-                      开源组件与许可 <ArrowRight size={11} />
+                    >{t("开源组件与许可")}<ArrowRight size={11} />
                     </a>
                   </span>
                 </div>
@@ -1490,22 +1462,19 @@ function App() {
           </div>
           <footer className="main-footer">
             <span className="footer-tagline">
-              <AudioLines size={14} aria-hidden="true" />
-              让音乐，自由流动。
-            </span>
+              <AudioLines size={14} aria-hidden="true" />{t("让音乐，自由流动。")}</span>
             <span className="footer-product">
-              YINCRATE <i /> 音乐格式转换工具
-            </span>
+              YINCRATE <i />{t("音乐格式转换工具")}</span>
             <p className="footer-author">
               <CircleUserRound size={14} strokeWidth={1.8} aria-hidden="true" />
-              <span>作者：猴子称大王（451040731）</span>
+              <span>{t("作者：猴子称大王（451040731）")}</span>
             </p>
           </footer>
         </main>
       </div>
       <div className="scene-caption">
         <span>YOUR MUSIC. YOUR FORMAT.</span>
-        <span>每一段旋律，都值得好好保留。</span>
+        <span>{t("每一段旋律，都值得好好保留。")}</span>
       </div>
       <input
         ref={fileInput}
@@ -1513,7 +1482,7 @@ function App() {
         accept={ACCEPT}
         multiple
         className="visually-hidden"
-        aria-label="选择音频文件"
+        aria-label={t("选择音频文件")}
         onChange={(e) => {
           addFiles(e.target.files);
           e.target.value = "";
@@ -1522,8 +1491,8 @@ function App() {
       {dragging && (
         <div className="drag-overlay" aria-hidden="true">
           <CloudUpload size={55} strokeWidth={1.5} />
-          <strong>把音乐放进转音匣</strong>
-          <span>松开即可添加到转换列表</span>
+          <strong>{t("把音乐放进转音匣")}</strong>
+          <span>{t("松开即可添加到转换列表")}</span>
         </div>
       )}
       {toast && (
@@ -1535,10 +1504,10 @@ function App() {
           ) : (
             <Music2 size={18} />
           )}
-          <span>{toast.message}</span>
+          <span>{t(toast.message)}</span>
           <button
             className="icon-button"
-            aria-label="关闭提示"
+            aria-label={t("关闭提示")}
             onClick={() => setToast(null)}
           >
             <X size={15} />
@@ -1547,11 +1516,13 @@ function App() {
       )}
       {advanced && (
         <Dialog
-          title="为好音质，多一点讲究"
-          subtitle="音频参数"
+          t={t}
+          title={t("为好音质，多一点讲究")}
+          subtitle={t("音频参数")}
           onClose={() => setAdvanced(false)}
         >
           <QualityControls
+            t={t}
             settings={settings}
             change={changeSettings}
             disabled={busy}
@@ -1560,25 +1531,22 @@ function App() {
             className="primary-button modal-done"
             onClick={() => setAdvanced(false)}
           >
-            <Check size={17} />
-            完成设置
-          </button>
+            <Check size={17} />{t("完成设置")}</button>
         </Dialog>
       )}
       {confirm && (
         <Dialog
-          title={confirm.title}
-          subtitle="本地数据"
+          t={t}
+          title={t(confirm.title)}
+          subtitle={t("本地数据")}
           onClose={() => setConfirm(null)}
         >
-          <p className="confirm-body">{confirm.body}</p>
+          <p className="confirm-body">{t(confirm.body)}</p>
           <div className="confirm-actions">
             <button
               className="secondary-button"
               onClick={() => setConfirm(null)}
-            >
-              保留记录
-            </button>
+            >{t("保留记录")}</button>
             <button
               className="danger-button"
               onClick={async () => {
@@ -1589,9 +1557,7 @@ function App() {
                   notify("操作未完成，请重试。", "error");
                 }
               }}
-            >
-              确认清空
-            </button>
+            >{t("确认清空")}</button>
           </div>
         </Dialog>
       )}
@@ -1608,7 +1574,7 @@ function ListMusicIcon() {
     </>
   );
 }
-function Dialog({ title, subtitle, onClose, children }) {
+function Dialog({ title, subtitle, onClose, children, t }) {
   const dialog = useRef(null),
     previousFocus = useRef(null);
   useEffect(() => {
@@ -1659,7 +1625,7 @@ function Dialog({ title, subtitle, onClose, children }) {
         <button
           className="icon-button modal-close"
           onClick={onClose}
-          aria-label="关闭对话框"
+          aria-label={t("关闭对话框")}
         >
           <X size={20} />
         </button>

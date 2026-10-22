@@ -8,6 +8,12 @@ import {
 import path from "node:path";
 import JSZip from "jszip";
 
+const { version } = JSON.parse(await readFile("package.json", "utf8"));
+const manifest = JSON.parse(await readFile("dist/manifest.json", "utf8"));
+if (manifest.version !== version) {
+  throw new Error("Package and extension versions must match.");
+}
+const archivePath = `release/YinCrate-v${version}-edge.zip`;
 const zip = new JSZip();
 async function add(dir, prefix = "") {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -23,11 +29,11 @@ await copyFile("docs/preview.png", "dist/docs/preview.png");
 await add("dist");
 await mkdir("release", { recursive: true });
 await writeFile(
-  "release/YinCrate-v1.0.0-edge.zip",
+  archivePath,
   await zip.generateAsync({
     type: "nodebuffer",
     compression: "DEFLATE",
     compressionOptions: { level: 6 },
   }),
 );
-console.log("Edge extension: dist/ · ZIP: release/YinCrate-v1.0.0-edge.zip");
+console.log(`Edge extension: dist/ · ZIP: ${archivePath}`);
