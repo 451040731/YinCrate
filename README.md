@@ -10,7 +10,7 @@
 
 **直接安装：** [下载 Edge 扩展安装包](https://github.com/451040731/YinCrate/blob/main/release)，解压后按下列步骤加载。
 
-本地构建会生成 `dist/` 文件夹和 `release/YinCrate-v1.0.1-edge.zip`。源码仓库不包含 `dist/` 和依赖；如需从源码安装，请先执行开发章节中的 `npm ci` 和 `npm run build`。
+开发构建 `npm run build` 只生成 `dist/` 文件夹；正式打包 `npm run release` 另外生成 `release/YinCrate-v<版本号>-edge.zip`。源码仓库不包含 `dist/` 和依赖；如需从源码安装，请先执行开发章节中的 `npm ci` 和 `npm run build`。
 
 1. 如使用 ZIP，请先解压到固定目录。
 2. 在 Edge 地址栏输入 `edge://extensions`。
@@ -61,14 +61,18 @@ npm run dev
 开发预览：`http://127.0.0.1:5173`。普通网页预览没有扩展的下载 API，会使用标准浏览器下载方式。实际扩展请加载构建后的 `dist/`。
 
 ```powershell
-npm run release
+npm run build
 npm test
+npm run test:ui
 npm run test:e2e
+npm run release
 ```
 
-`npm run release` 是一键打包命令，会重新构建最新代码，并在 `release/` 目录生成 `YinCrate-v<版本号>-edge.zip`。版本号读取自 `package.json`，同一版本再次打包会覆盖同名 ZIP。原有的 `npm run build` 命令仍可使用。
+`npm run build` 仅构建最新 `dist/`，用于开发和加载扩展，不生成 ZIP。浏览器测试前先构建，`test:ui` 无需 release ZIP。
 
-`build` 会复制本地 WebAssembly 音频引擎、生成 PNG 图标、构建页面并生成 ZIP。完整引擎约 32 MB，启动时从扩展本地加载。无需本机安装 FFmpeg；自动测试生成对照样本时需要命令行 `ffmpeg` 与 `ffprobe`。
+`npm run release` 会重新构建最新代码，再在 `release/` 目录生成 `YinCrate-v<版本号>-edge.zip`。版本号读取自 `package.json`，同一版本再次打包会覆盖同名 ZIP。版本号仍需手动同步修改 `package.json`、`package-lock.json` 和 `public/manifest.json`，命令不会自动升级版本或创建 Git 标签。
+
+`build` 会复制本地 WebAssembly 音频引擎、生成 PNG 图标并构建页面；`release` 在构建后额外生成 ZIP。完整引擎约 32 MB，启动时从扩展本地加载。无需本机安装 FFmpeg；自动测试生成对照样本时需要命令行 `ffmpeg` 与 `ffprobe`。
 
 Windows 上端到端测试默认使用已安装的 Edge，在独立临时扩展环境中运行真实 WASM 引擎。其他系统需先执行 `npx playwright install chromium`。测试使用自行生成的音频及合成 NCM 容器，检查格式输出、原始字节保留、无损 PCM 比对、记录持久化、取消重试、错误文件及下载。没有拿到用户真实下载的 NCM/OGG 样本，因此不能替代对特定平台版本文件的兼容性验证。
 

@@ -29,6 +29,15 @@ description: "在转音匣 YinCrate 仓库中开发和维护 Edge 音频转换�
 
 项目使用 React、Vite、普通 JavaScript/JSX、CSS、ffmpeg.wasm、JSZip 和 lucide-react。沿用已有组件、图标和工具函数。
 
+## 前端技能（React + Vite）
+
+- 新增 React 组件、开发页面、调整布局、样式或美化界面时，结合使用 `$frontend-design`。从当前会话的可用技能列表定位并读取它的 `SKILL.md`，按本次界面需求应用；纯音频逻辑、文档或打包任务无需加载前端设计技能。
+- 沿用 React + Vite、JavaScript/JSX 和现有 CSS；优先复用组件、CSS 变量及 lucide-react 图标。除非用户要求，不切换框架或额外引入 UI、样式、动画库。
+- 设计以用户参考图和现有浅蓝视觉为基础，遵循下方“界面与品牌”约定。前端设计技能用于改善排版、层次、间距和交互细节，不能覆盖用户已有的品牌与布局要求。
+- 修改界面时同时查看 `src/main.jsx`、`src/styles.css` 及相关 `src/lib/i18n.js` 文案，沿用真实队列与转换状态，保持上传、取消、试听和下载功能可用。
+- Vite 保持扩展所需的相对资源路径（`base: "./"`）和模块 Worker 配置；脚本、字体和图标使用本地资源，遵守扩展 CSP。
+- 开发预览使用 `npm run dev`（首次先运行 `node scripts/prepare.mjs`）；`npm run build` 只生成 `dist/`，界面验证按下方检查表执行。需要正式 ZIP 时再运行 `npm run release`，不自动升级版本或创建 Git 标签。
+
 ## 保持转换准确和本地运行
 
 - 音频、引擎、Worker 和 WASM 都在浏览器本地运行。维持 Manifest V3 的本地资源与 CSP 配置，不引入 CDN、远程执行代码或音频上传服务。权限应与本次功能需要相符；当前仅使用 `downloads`。

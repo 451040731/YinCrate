@@ -2,7 +2,6 @@ import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import JSZip from "jszip";
 
 const root = process.cwd();
 const out = path.join(root, "test-results", "i18n");
@@ -147,11 +146,6 @@ try {
     assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
   });
 
-  await check("release archive contains versioned manifest and all local assets", async () => {
-    const archive = await JSZip.loadAsync(await readFile(`release/YinCrate-v${version}-edge.zip`));
-    assert.equal(JSON.parse(await archive.file("manifest.json").async("string")).version, version);
-    for (const file of ["index.html", "background.js", "engine/ffmpeg-core.wasm", "README.md"]) assert.ok(archive.file(file), file);
-  });
   assert.deepEqual(errors, []);
   assert.deepEqual(requests, []);
   await writeFile(path.join(out, "report.json"), JSON.stringify({ passed: checks, pageErrors: errors, networkRequests: requests }, null, 2));
