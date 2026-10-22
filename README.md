@@ -8,15 +8,37 @@
 
 ## 安装使用
 
-**直接安装：** [下载 Edge 扩展安装包](https://github.com/451040731/YinCrate/blob/main/release)，解压后按下列步骤加载。
+> [!TIP]
+> **下载说明**
+>
+> - **GitHub Releases**：前往 [v1.0.1 发布页面](https://github.com/451040731/YinCrate/releases/tag/v1.0.1)，或直接下载 [**YinCrate-v1.0.1-edge.zip**](https://github.com/451040731/YinCrate/releases/download/v1.0.1/YinCrate-v1.0.1-edge.zip)。
+> - **百度网盘**：[下载安装包](https://pan.baidu.com/s/1RteKQp2G6_oKjAocCZnk0A?pwd=h7im)，提取码：`h7im`。GitHub 下载较慢时可使用此入口。
+>
+> 下载后请先解压，再按下方步骤手动安装。
 
-开发构建 `npm run build` 只生成 `dist/` 文件夹；正式打包 `npm run release` 另外生成 `release/YinCrate-v<版本号>-edge.zip`。源码仓库不包含 `dist/` 和依赖；如需从源码安装，请先执行开发章节中的 `npm ci` 和 `npm run build`。
+**商店状态：** Edge 扩展正在提交 Microsoft Edge 加载项商店审核，审核通过前可先手动下载安装。Chrome 网上应用店在部分网络环境下需要代理才能访问，也可以使用上述安装包解压后手动安装。
+
+**Edge 手动安装：**
 
 1. 如使用 ZIP，请先解压到固定目录。
 2. 在 Edge 地址栏输入 `edge://extensions`。
 3. 打开左侧的“开发人员模式”。
 4. 点击“加载解压缩的扩展”，选择 **包含 manifest.json 的 dist 文件夹**，或 ZIP 解压后的目录。
 5. 在扩展菜单中点击“转音匣”，即可在独立标签页中打开工作台。可将扩展固定到工具栏。
+
+**Chrome 手动安装：**
+
+1. 下载 `YinCrate-v1.0.1-edge.zip`，解压到固定目录。
+2. 打开浏览器菜单 → **扩展程序** → **管理扩展程序**，或在地址栏输入 `chrome://extensions`。
+3. 开启右上角的 **开发者模式**。
+4. 将解压后、包含 `manifest.json` 的文件夹拖入扩展程序管理页面；也可以点击 **加载已解压的扩展程序**，选择该文件夹。
+5. 安装完成后，在扩展程序菜单中打开“转音匣”，可将其固定到工具栏。
+
+手动加载方式也可参考 [Chrome 官方说明](https://developer.chrome.com/docs/extensions/get-started/tutorial/hello-world#load-unpacked)。
+
+## 开发构建
+
+开发构建 `npm run build` 只生成 `dist/` 文件夹；正式打包 `npm run release` 另外生成 `release/YinCrate-v<版本号>-edge.zip`。源码仓库不包含 `dist/` 和依赖；如需从源码安装，请先执行开发章节中的 `npm ci` 和 `npm run build`。
 
 将音乐文件拖入窗口，选择输出格式，点击“开始转换”。完成后可试听、逐个下载或打包下载。扩展内下载默认位于浏览器下载目录的 `YinCrate/` 文件夹；最终位置仍由浏览器下载设置决定。转换时请保持工作台标签页打开。
 
@@ -76,7 +98,7 @@ npm run release
 
 Windows 上端到端测试默认使用已安装的 Edge，在独立临时扩展环境中运行真实 WASM 引擎。其他系统需先执行 `npx playwright install chromium`。测试使用自行生成的音频及合成 NCM 容器，检查格式输出、原始字节保留、无损 PCM 比对、记录持久化、取消重试、错误文件及下载。没有拿到用户真实下载的 NCM/OGG 样本，因此不能替代对特定平台版本文件的兼容性验证。
 
-源码入口：`src/main.jsx`；音频引擎：`src/lib/converter.js`；NCM 解析：`src/lib/ncm.js`；扩展清单：`public/manifest.json`。开源组件及对应源码见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。当前交付为可侧载扩展，未提交到 Edge 商店。
+源码入口：`src/main.jsx`；音频引擎：`src/lib/converter.js`；NCM 解析：`src/lib/ncm.js`；扩展清单：`public/manifest.json`。开源组件及对应源码见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。当前提供可侧载安装包，Edge 商店版本正在提交审核。
 
 ## 微信打赏
 
