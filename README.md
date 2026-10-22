@@ -61,10 +61,12 @@ npm run dev
 开发预览：`http://127.0.0.1:5173`。普通网页预览没有扩展的下载 API，会使用标准浏览器下载方式。实际扩展请加载构建后的 `dist/`。
 
 ```powershell
-npm run build
+npm run release
 npm test
 npm run test:e2e
 ```
+
+`npm run release` 是一键打包命令，会重新构建最新代码，并在 `release/` 目录生成 `YinCrate-v<版本号>-edge.zip`。版本号读取自 `package.json`，同一版本再次打包会覆盖同名 ZIP。原有的 `npm run build` 命令仍可使用。
 
 `build` 会复制本地 WebAssembly 音频引擎、生成 PNG 图标、构建页面并生成 ZIP。完整引擎约 32 MB，启动时从扩展本地加载。无需本机安装 FFmpeg；自动测试生成对照样本时需要命令行 `ffmpeg` 与 `ffprobe`。
 

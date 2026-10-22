@@ -1,0 +1,4 @@
+interface:
+  display_name: "转音匣项目开发"
+  short_description: "维护转音匣 Edge 扩展的中英文界面、本地音频转换、测试与发布打包"
+  default_prompt: "使用 $yincrate-dev 完成转音匣项目中的开发需求，并执行与改动相符的检查。"
