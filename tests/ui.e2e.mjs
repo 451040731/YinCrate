@@ -7,6 +7,8 @@ const root = process.cwd();
 const out = path.join(root, "test-results", "i18n");
 await mkdir(out, { recursive: true });
 const { version } = JSON.parse(await readFile("package.json", "utf8"));
+const chineseMetadata = JSON.parse(await readFile("public/_locales/zh_CN/messages.json", "utf8"));
+const englishMetadata = JSON.parse(await readFile("public/_locales/en/messages.json", "utf8"));
 const extension = path.join(root, "dist");
 const context = await chromium.launchPersistentContext(path.join(out, `profile-${Date.now()}`), {
   channel: process.env.YINCRATE_BROWSER || (process.platform === "win32" ? "msedge" : "chromium"),
@@ -42,11 +44,30 @@ try {
   await page.goto(`chrome-extension://${id}/index.html`);
   await context.setOffline(true);
 
-  await check("Chinese default, language control before theme, consistent version", async () => {
+  await check("Localized manifest metadata, Chinese default UI, language control and version", async () => {
     await page.getByRole("heading", { name: "好音乐，换个格式听。" }).waitFor();
     assert.equal(await language().inputValue(), "zh");
     assert.equal(await page.locator("html").getAttribute("lang"), "zh-CN");
     assert.equal(await page.evaluate(() => chrome.runtime.getManifest().version), version);
+    const metadata = await page.evaluate(() => {
+      const manifest = chrome.runtime.getManifest();
+      return {
+        locale: manifest.default_locale,
+        uiLanguage: chrome.i18n.getUILanguage(),
+        name: manifest.name,
+        shortName: manifest.short_name,
+        description: manifest.description,
+        actionTitle: manifest.action.default_title,
+        messageName: chrome.i18n.getMessage("extensionName"),
+      };
+    });
+    const messages = metadata.uiLanguage.toLowerCase().startsWith("en") ? englishMetadata : chineseMetadata;
+    assert.equal(metadata.locale, "zh_CN");
+    assert.equal(metadata.name, messages.extensionName.message);
+    assert.equal(metadata.shortName, messages.extensionShortName.message);
+    assert.equal(metadata.description, messages.extensionDescription.message);
+    assert.equal(metadata.actionTitle, messages.actionTitle.message);
+    assert.equal(metadata.messageName, metadata.name);
     assert.equal(await page.locator(".sidebar-foot").innerText().then(text => text.includes(`v${version}`)), true);
     assert.ok(await page.evaluate(() => document.querySelector(".language-switch").compareDocumentPosition(document.querySelector(".topbar button")) & Node.DOCUMENT_POSITION_FOLLOWING));
   });

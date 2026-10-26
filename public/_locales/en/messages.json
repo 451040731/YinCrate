@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "YinCrate · Offline Audio Converter"
+  },
+  "extensionShortName": {
+    "message": "YinCrate"
+  },
+  "extensionDescription": {
+    "message": "Offline NCM, OGG, FLAC, WAV and M4A conversion. Drag and drop, batch processing, 320 kbps MP3 and lossless FLAC/WAV."
+  },
+  "actionTitle": {
+    "message": "Open YinCrate"
+  }
+}

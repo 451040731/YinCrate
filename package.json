@@ -1,6 +1,6 @@
 {
   "name": "yincrate",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "description": "转音匣 YinCrate — 在本地，让音乐自由流动。",

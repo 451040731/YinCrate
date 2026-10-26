@@ -100,6 +100,14 @@ Windows 上端到端测试默认使用已安装的 Edge，在独立临时扩展�
 
 源码入口：`src/main.jsx`；音频引擎：`src/lib/converter.js`；NCM 解析：`src/lib/ncm.js`；扩展清单：`public/manifest.json`。开源组件及对应源码见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。当前提供可侧载安装包，Edge 商店版本正在提交审核。
 
+## 修改说明与发布
+
+每次项目新增、修改或删除文件后，统一更新根目录的 [changelog.md](changelog.md)，按版本维护“修改说明”和“更新内容”。同一版本的后续更新追加到已有章节，保留历史版本记录，不再新建独立说明文件，也不自动增加应用版本号。
+
+提交标题使用 `v<版本号>：<当前版本的修改说明>`，正文依据该版本“更新内容”编写。提交前审阅差异、同步远端、完成必要验证并检查暂存区，提交后推送并确认远端提交号；具体流程见 [AGENTS.md](AGENTS.md)。
+
+`release/` 目录仅用于保存本地安装包，整个目录由 Git 忽略，不提交到源码仓库。运行 `npm run release` 后，由维护者手动将 ZIP 上传至 [GitHub Releases](https://github.com/451040731/YinCrate/releases)，并填写对应的版本更新说明。源码提交、安装包生成与 Release 发布分别进行。
+
 ## 微信打赏
 
 如果转音匣对你有帮助，欢迎微信扫码打赏，支持项目持续维护与更新。

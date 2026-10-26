@@ -1,0 +1,14 @@
+{
+  "extensionName": {
+    "message": "转音匣 YinCrate · 本地音乐转换"
+  },
+  "extensionShortName": {
+    "message": "转音匣"
+  },
+  "extensionDescription": {
+    "message": "离线转换 NCM、OGG、FLAC、WAV、M4A 等音乐，支持拖拽、批量处理、320 kbps MP3 和 FLAC/WAV 无损输出。"
+  },
+  "actionTitle": {
+    "message": "打开转音匣 YinCrate"
+  }
+}
