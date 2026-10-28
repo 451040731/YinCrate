@@ -11,12 +11,19 @@
 > [!TIP]
 > **下载说明**
 >
-> - **GitHub Releases**：前往 [v1.0.1 发布页面](https://github.com/451040731/YinCrate/releases/tag/v1.0.1)，或直接下载 [**YinCrate-v1.0.1-edge.zip**](https://github.com/451040731/YinCrate/releases/download/v1.0.1/YinCrate-v1.0.1-edge.zip)。
+> - **Edge 商店安装（推荐）**：[前往 Microsoft Edge 加载项商店安装转音匣](https://microsoftedge.microsoft.com/addons/detail/ohgnjlfmmbnkhnjfinclnojfljekpcko)。
+> - **GitHub Releases 手动安装包**：前往 [版本下载页面](https://github.com/451040731/YinCrate/releases)，下载所需版本的 `YinCrate-v<版本号>-edge.zip`。
 > - **百度网盘**：[下载安装包](https://pan.baidu.com/s/1RteKQp2G6_oKjAocCZnk0A?pwd=h7im)，提取码：`h7im`。GitHub 下载较慢时可使用此入口。
 >
-> 下载后请先解压，再按下方步骤手动安装。
+> Edge 用户可直接通过商店安装；选择 ZIP 安装包时，请先解压，再按下方步骤手动安装。
 
-**商店状态：** Edge 扩展正在提交 Microsoft Edge 加载项商店审核，审核通过前可先手动下载安装。Chrome 网上应用店在部分网络环境下需要代理才能访问，也可以使用上述安装包解压后手动安装。
+**商店状态：** 转音匣已在 Microsoft Edge 加载项商店正式发布。Edge 用户推荐通过商店安装，Chrome 用户可使用上述 ZIP 安装包手动安装。
+
+**Edge 商店安装（推荐）：**
+
+1. 使用 Edge 打开 [转音匣商店页面](https://microsoftedge.microsoft.com/addons/detail/ohgnjlfmmbnkhnjfinclnojfljekpcko)。
+2. 按商店页面及浏览器提示添加扩展，无需解压安装包或开启开发人员模式。
+3. 在扩展菜单中打开“转音匣”，可将其固定到工具栏。
 
 **Edge 手动安装：**
 
@@ -28,7 +35,7 @@
 
 **Chrome 手动安装：**
 
-1. 下载 `YinCrate-v1.0.1-edge.zip`，解压到固定目录。
+1. 从 GitHub Releases 或百度网盘下载 ZIP 安装包，解压到固定目录。
 2. 打开浏览器菜单 → **扩展程序** → **管理扩展程序**，或在地址栏输入 `chrome://extensions`。
 3. 开启右上角的 **开发者模式**。
 4. 将解压后、包含 `manifest.json` 的文件夹拖入扩展程序管理页面；也可以点击 **加载已解压的扩展程序**，选择该文件夹。
@@ -98,7 +105,7 @@ npm run release
 
 Windows 上端到端测试默认使用已安装的 Edge，在独立临时扩展环境中运行真实 WASM 引擎。其他系统需先执行 `npx playwright install chromium`。测试使用自行生成的音频及合成 NCM 容器，检查格式输出、原始字节保留、无损 PCM 比对、记录持久化、取消重试、错误文件及下载。没有拿到用户真实下载的 NCM/OGG 样本，因此不能替代对特定平台版本文件的兼容性验证。
 
-源码入口：`src/main.jsx`；音频引擎：`src/lib/converter.js`；NCM 解析：`src/lib/ncm.js`；扩展清单：`public/manifest.json`。开源组件及对应源码见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。当前提供可侧载安装包，Edge 商店版本正在提交审核。
+源码入口：`src/main.jsx`；音频引擎：`src/lib/converter.js`；NCM 解析：`src/lib/ncm.js`；扩展清单：`public/manifest.json`。开源组件及对应源码见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。已上架 [Microsoft Edge 加载项商店](https://microsoftedge.microsoft.com/addons/detail/ohgnjlfmmbnkhnjfinclnojfljekpcko)，同时提供 ZIP 安装包供手动加载。
 
 ## 修改说明与发布
 
