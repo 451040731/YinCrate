@@ -2,6 +2,7 @@ import { chromium } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fixtureHash, makeEkey, mapKey } from "./container-fixtures.mjs";
 
 const root = process.cwd();
 const out = path.join(root, "test-results", "i18n");
@@ -90,6 +91,27 @@ try {
     }
   });
 
+  await check("KuGou key import, invalid JSON, clear action and bilingual errors", async () => {
+    await nav("Preferences").click();
+    await page.getByLabel("Choose KuGou key JSON").setInputFiles({ name: "keys.json", mimeType: "application/json", buffer: Buffer.from("broken") });
+    await page.getByRole("status").filter({ hasText: "The key file is not valid JSON." }).waitFor();
+    await page.getByLabel("Choose KuGou key JSON").setInputFiles({ name: "keys.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ [fixtureHash]: makeEkey(mapKey) })) });
+    await page.getByText("1 key(s) imported", { exact: true }).waitFor();
+    await noChinese();
+    await page.getByRole("button", { name: "Clear keys", exact: true }).click();
+    await page.getByText("0 key(s) imported", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Clear keys", exact: true }).isDisabled(), true);
+    await nav("Convert").click();
+    await page.getByLabel("Choose audio files").setInputFiles({ name: "broken.kgm", mimeType: "application/octet-stream", buffer: Buffer.from("invalid") });
+    await page.getByRole("button", { name: /Start conversion/ }).click();
+    await page.locator(".file-row.error").waitFor();
+    assert.match(await page.locator(".file-error").innerText(), /music header is invalid/);
+    await language().selectOption("zh");
+    assert.match(await page.locator(".file-error").innerText(), /音乐文件头无效/);
+    await language().selectOption("en");
+    await page.getByRole("button", { name: "Clear queue", exact: true }).click();
+  });
+
   await check("English validation, NCM worker errors and live notification translation", async () => {
     await page.getByLabel("Choose audio files").setInputFiles({ name: "invalid.egg", mimeType: "application/octet-stream", buffer: Buffer.from("invalid") });
     await page.getByRole("status").filter({ hasText: "EGG is not supported" }).waitFor();
@@ -104,7 +126,7 @@ try {
     await page.getByRole("button", { name: "Clear queue", exact: true }).click();
   });
 
-  await check("language can change during real offline conversion; history stays bilingual", async () => {
+  await check("language can change during real offline conversion", async () => {
     await page.getByLabel("Output format", { exact: true }).selectOption("mp3");
     await page.getByRole("button", { name: "try demo audio" }).click();
     await page.getByRole("button", { name: /Start conversion/ }).click();
@@ -116,6 +138,67 @@ try {
     assert.equal(await page.locator(".file-error").count(), 0);
     await language().selectOption("en");
     await noChinese();
+  });
+
+  await check("converted audio seeks forward/backward, resumes and shares playback with history", async () => {
+    const row = page.locator(".file-row.done").last();
+    const audio = page.locator(".preview-player audio");
+    const player = page.getByRole("region", { name: "Audio preview player" });
+    await row.locator(".row-play").click();
+    await player.waitFor();
+    await page.waitForFunction(() => document.querySelector("audio").currentTime > 0.35);
+    await row.getByRole("button", { name: /^Pause previewing / }).click();
+    assert.equal(await audio.evaluate(el => el.paused), true);
+    const source = await audio.getAttribute("src");
+    const pausedTime = await audio.evaluate(el => el.currentTime);
+    await audio.press("ArrowRight");
+    assert.ok(await audio.evaluate(el => el.currentTime) > pausedTime);
+    await audio.press("ArrowLeft");
+    assert.ok(Math.abs(await audio.evaluate(el => el.currentTime) - pausedTime) < 0.02);
+    await row.locator(".row-play").click();
+    await page.waitForFunction(() => !document.querySelector("audio").paused);
+    assert.equal(await audio.getAttribute("src"), source);
+    assert.ok(await audio.evaluate(el => el.currentTime) >= pausedTime);
+    await row.getByRole("button", { name: /^Pause previewing / }).click();
+
+    const name = await page.locator(".preview-heading strong").innerText();
+    const beforeNavigation = await audio.evaluate(el => el.currentTime);
+    await nav("History").click();
+    assert.equal(await audio.getAttribute("src"), source);
+    assert.equal(await audio.evaluate(el => el.currentTime), beforeNavigation);
+    const historyRow = page.locator(".history-row").filter({ has: page.getByRole("heading", { name, exact: true }) });
+    await historyRow.locator(".row-play").click();
+    await page.waitForFunction(() => !document.querySelector("audio").paused);
+    assert.equal(await audio.getAttribute("src"), source);
+    await historyRow.getByRole("button", { name: /^Pause previewing / }).click();
+    await audio.evaluate(el => { el.currentTime = el.duration - 0.15; });
+    await historyRow.locator(".row-play").click();
+    await page.waitForFunction(() => document.querySelector("audio").ended);
+    await historyRow.locator(".row-play").click();
+    await page.waitForFunction(() => !document.querySelector("audio").paused && document.querySelector("audio").currentTime < 1);
+    await historyRow.getByRole("button", { name: /^Pause previewing / }).click();
+
+    await language().selectOption("zh");
+    await page.getByRole("region", { name: "音乐试听播放器" }).waitFor();
+    await language().selectOption("en");
+    await noChinese();
+    await nav("Convert").click();
+    await row.locator(".remove-button").click();
+    assert.equal(await page.locator(".preview-player").isVisible(), false);
+    assert.equal(await audio.getAttribute("src"), null);
+    assert.equal(await audio.evaluate(el => el.paused), true);
+
+    await page.locator(".file-row.done .row-play").first().click();
+    await player.waitFor();
+    const newSource = await audio.getAttribute("src");
+    assert.notEqual(newSource, source);
+    await page.getByRole("button", { name: "Close preview", exact: true }).click();
+    assert.equal(await page.locator(".preview-player").isVisible(), false);
+    assert.equal(await audio.getAttribute("src"), null);
+    assert.equal(await audio.evaluate(el => el.paused), true);
+  });
+
+  await check("converted history survives reload and stays bilingual", async () => {
     await page.reload();
     await nav("History").click();
     assert.equal(await page.locator(".history-row").count(), 3);
@@ -127,6 +210,10 @@ try {
   });
 
   await check("Chinese and English layouts, both themes, mobile through desktop", async () => {
+    await page.locator(".history-row .row-play").first().click();
+    await page.getByRole("button", { name: /^Pause previewing / }).waitFor();
+    await page.getByRole("button", { name: /^Pause previewing / }).click();
+    const source = await page.locator("audio").getAttribute("src");
     let layouts = 0;
     for (const locale of ["en", "zh"]) {
       await language().selectOption(locale);
@@ -140,6 +227,7 @@ try {
             if (name === views[3]) await page.locator(".faq-list summary").first().click();
             if (locale === "en") await noChinese();
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${locale} ${theme} ${width} ${name}`);
+            assert.equal(await page.locator("audio").getAttribute("src"), source);
             if (locale === "en" && theme === "light" && [390, 1440].includes(width)) await page.screenshot({ path: path.join(out, `en-${width}-${views.indexOf(name)}.png`), fullPage: true });
             layouts++;
           }
@@ -154,6 +242,7 @@ try {
       }
     }
     assert.equal(layouts, 120);
+    await page.getByRole("button", { name: "关闭试听", exact: true }).click();
     await page.reload();
     assert.equal(await language().inputValue(), "zh");
   });

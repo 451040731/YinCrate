@@ -1,6 +1,6 @@
 {
   "name": "yincrate",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "description": "转音匣 YinCrate — 在本地，让音乐自由流动。",
@@ -19,6 +19,7 @@
     "@noble/ciphers": "2.4.0",
     "jszip": "3.10.1",
     "lucide-react": "0.468.0",
+    "music-metadata": "12.3.2",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

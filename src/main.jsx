@@ -39,8 +39,10 @@ import {
   X,
 } from "lucide-react";
 import { AudioConverter } from "./lib/converter.js";
+import { parseKugouKeys } from "./lib/kugou-key.js";
 import {
   ACCEPT,
+  CONTAINER_FORMATS,
   DEFAULT_SETTINGS,
   INPUT_FORMATS,
   MAX_FILE_SIZE,
@@ -106,6 +108,26 @@ function Logo({ small = false }) {
     <span className={`logo-mark ${small ? "small" : ""}`} aria-hidden="true">
       <AudioLines strokeWidth={2.7} />
     </span>
+  );
+}
+function FileArtwork({ cover, format, children }) {
+  const [image, setImage] = useState(null);
+  useEffect(() => {
+    if (!cover) return;
+    const url = URL.createObjectURL(cover);
+    setImage({ cover, url });
+    return () => URL.revokeObjectURL(url);
+  }, [cover]);
+  const url = image?.cover === cover ? image?.url : null;
+  return (
+    <div className={`file-art ${format || ""} ${url ? "has-cover" : ""}`} aria-hidden="true">
+      {url ? <img src={url} alt="" onError={() => setImage(null)} /> : (
+        <>
+          {children || <FileMusic size={23} />}
+          {format && <span>{format.toUpperCase()}</span>}
+        </>
+      )}
+    </div>
   );
 }
 function Select({
@@ -219,9 +241,12 @@ function App() {
   const toastTimer = useRef(null);
   const [zipBusy, setZipBusy] = useState(false);
   const [playing, setPlaying] = useState(null);
+  const [previewTrack, setPreviewTrack] = useState(null);
   const audioRef = useRef(null);
-  const playingUrl = useRef(null);
+  const previewRef = useRef(null);
   const fileInput = useRef(null);
+  const keyInput = useRef(null);
+  const [keyCount, setKeyCount] = useState(0);
   const engine = useRef(new AudioConverter());
   const controller = useRef(null);
   const [confirm, setConfirm] = useState(null);
@@ -253,6 +278,20 @@ function App() {
       return next;
     });
   }
+  async function importKugouKeys(file) {
+    if (!file || busyRef.current) return;
+    try {
+      if (file.size > 4 * 1024 * 1024) throw new Error("密钥 JSON 不能超过 4 MB。");
+      const keys = parseKugouKeys(await file.text());
+      if (busyRef.current) return;
+      engine.current.kugouKeys = keys;
+      const count = Object.keys(keys).length;
+      setKeyCount(count);
+      notify("已导入 {count} 首歌曲的密钥，可重试转换。", "info", { count });
+    } catch (error) {
+      notify(error.message, "error");
+    }
+  }
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme;
     document.documentElement.lang = settings.language === "en" ? "en" : "zh-CN";
@@ -279,11 +318,15 @@ function App() {
       }
     };
     window.addEventListener("beforeunload", preventClose);
+    const audio = audioRef.current;
     return () => {
       window.removeEventListener("beforeunload", preventClose);
       engine.current.cancel();
       clearTimeout(toastTimer.current);
-      if (playingUrl.current) URL.revokeObjectURL(playingUrl.current);
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current.url);
     };
   }, []);
   useEffect(() => {
@@ -375,7 +418,7 @@ function App() {
         "error",
       );
     // Metadata is optional; decoding here would hold an entire second PCM copy in memory.
-    for (const item of accepted.filter((x) => x.ext !== "ncm")) {
+    for (const item of accepted.filter((x) => !CONTAINER_FORMATS.includes(x.ext))) {
       const url = URL.createObjectURL(item.file);
       const audio = new Audio();
       audio.preload = "metadata";
@@ -448,6 +491,7 @@ function App() {
             size: result.blob.size,
             duration: result.duration || item.duration,
             blob: result.blob,
+            cover: result.cover,
             method: result.method,
             createdAt: Date.now(),
           };
@@ -504,34 +548,40 @@ function App() {
   }
   function removeItem(item) {
     if (item.status === "converting") return;
-    if (playing === item.id) stopPlaying();
+    if (previewRef.current?.id === item.id) stopPlaying();
     updateItems((all) => all.filter((x) => x.id !== item.id));
   }
   function stopPlaying() {
-    audioRef.current?.pause();
-    if (playingUrl.current) {
-      URL.revokeObjectURL(playingUrl.current);
-      playingUrl.current = null;
+    const audio = audioRef.current;
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    if (previewRef.current) {
+      URL.revokeObjectURL(previewRef.current.url);
+      previewRef.current = null;
     }
-    audioRef.current = null;
+    setPreviewTrack(null);
     setPlaying(null);
   }
-  function preview(id, blob) {
-    if (playing === id) return stopPlaying();
-    stopPlaying();
-    const url = URL.createObjectURL(blob);
-    playingUrl.current = url;
-    const audio = new Audio(url);
-    audioRef.current = audio;
-    audio.onended = stopPlaying;
-    audio.onerror = () => {
+  function preview(id, blob, name, cover) {
+    const audio = audioRef.current;
+    if (previewRef.current?.id === id) {
+      if (!audio.paused) {
+        audio.pause();
+        return;
+      }
+    } else {
       stopPlaying();
-      notify("浏览器无法试听此格式，下载后可用本地播放器播放。", "error");
-    };
+      const track = { id, name, cover, url: URL.createObjectURL(blob) };
+      previewRef.current = track;
+      setPreviewTrack(track);
+      audio.src = track.url;
+    }
+    const url = previewRef.current.url;
     audio
       .play()
-      .then(() => setPlaying(id))
-      .catch(() => {
+      .catch((error) => {
+        if (previewRef.current?.url !== url || error.name === "AbortError") return;
         stopPlaying();
         notify("试听未能开始，可下载后播放。", "error");
       });
@@ -802,6 +852,15 @@ function App() {
                 <section
                   className={`dropzone ${dragging ? "dragging" : ""}`}
                   aria-label={t("音乐文件上传区域")}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => fileInput.current.click()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      fileInput.current.click();
+                    }
+                  }}
                 >
                   <div className="dropzone-corner top-left" />
                   <div className="dropzone-corner bottom-right" />
@@ -817,14 +876,12 @@ function App() {
                       : "拖入音乐，开启格式自由")}
                   </h2>
                   <p>{t("将音频文件拖到这里，或")}{" "}
-                    <button
-                      className="text-button"
-                      onClick={() => fileInput.current.click()}
-                    >{t("点击选择文件")}<ArrowRight size={13} />
-                    </button>
+                    <span className="text-button">
+                      {t("点击选择文件")}<ArrowRight size={13} />
+                    </span>
                   </p>
                   <div className="format-chips">
-                    {["NCM", "OGG", "FLAC", "WAV", "MP3"].map((format) => (
+                    {["NCM", "KGG", "KGM", "KWM", "OGG", "FLAC", "WAV", "MP3"].map((format) => (
                       <span
                         className={`format-chip ${format.toLowerCase()}`}
                         key={format}
@@ -892,19 +949,15 @@ function App() {
                           className={`file-row ${item.status}`}
                           key={item.id}
                         >
-                          <div
-                            className={`file-art ${item.ext}`}
-                            aria-hidden="true"
-                          >
-                            {item.ext === "ncm" ? (
+                          <FileArtwork cover={item.result?.cover} format={item.ext}>
+                            {CONTAINER_FORMATS.includes(item.ext) ? (
                               <Music2 size={25} />
                             ) : item.ext === "ogg" ? (
                               <Disc3 size={25} />
                             ) : (
                               <AudioLines size={25} />
                             )}
-                            <span>{item.ext.toUpperCase()}</span>
-                          </div>
+                          </FileArtwork>
                           <div className="file-info">
                             <h3 title={item.file.name}>{item.file.name}</h3>
                             <div className="file-meta">
@@ -979,10 +1032,10 @@ function App() {
                                 <button
                                   className={`icon-button row-play ${playing === item.id ? "is-playing" : ""}`}
                                   onClick={() =>
-                                    preview(item.id, item.result.blob)
+                                    preview(item.id, item.result.blob, item.result.name, item.result.cover)
                                   }
-                                  aria-label={t(playing === item.id ? "停止试听 {name}" : "试听 {name}", { name: item.file.name })}
-                                  title={t("试听")}
+                                  aria-label={t(playing === item.id ? "暂停试听 {name}" : "试听 {name}", { name: item.file.name })}
+                                  title={t(playing === item.id ? "暂停试听" : "试听")}
                                 >
                                   {playing === item.id ? (
                                     <Pause size={15} fill="currentColor" />
@@ -1111,7 +1164,7 @@ function App() {
                     {t(settings.format === "mp3"
                       ? "高音质 MP3 输出。需要无损？试试 FLAC / WAV。"
                       : settings.format === "original"
-                        ? "直接保留原始音频字节，NCM 将提取为内部的 MP3 / FLAC。"
+                        ? "直接保留原始音频字节，加密音乐将提取为内部音频。"
                         : "无损编码保留可表示的音频精度；采样率与声道默认跟随源文件。")}
                   </span>
                 </div>
@@ -1202,10 +1255,7 @@ function App() {
                   <div className="history-list">
                     {history.map((record) => (
                       <article className="history-row" key={record.id}>
-                        <div className={`file-art ${record.sourceFormat}`}>
-                          <FileMusic size={23} />
-                          <span>{record.format.toUpperCase()}</span>
-                        </div>
+                        <FileArtwork cover={record.cover} format={record.format} />
                         <div className="file-info">
                           <h3 title={record.name}>{record.name}</h3>
                           <div className="file-meta">
@@ -1224,9 +1274,10 @@ function App() {
                         <span className="history-method">{t(record.method)}</span>
                         <div className="file-actions">
                           <button
-                            className="icon-button row-play"
-                            onClick={() => preview(record.id, record.blob)}
-                            aria-label={t(playing === record.id ? "停止试听 {name}" : "试听 {name}", { name: record.name })}
+                            className={`icon-button row-play ${playing === record.id ? "is-playing" : ""}`}
+                            onClick={() => preview(record.id, record.blob, record.name, record.cover)}
+                            aria-label={t(playing === record.id ? "暂停试听 {name}" : "试听 {name}", { name: record.name })}
+                            title={t(playing === record.id ? "暂停试听" : "试听")}
                           >
                             {playing === record.id ? (
                               <Pause size={15} />
@@ -1249,7 +1300,7 @@ function App() {
                                 setHistory((previous) =>
                                   previous.filter((x) => x.id !== record.id),
                                 );
-                                if (playing === record.id) stopPlaying();
+                                if (previewRef.current?.id === record.id) stopPlaying();
                               } catch {
                                 notify("记录删除失败，请重试。", "error");
                               }
@@ -1318,6 +1369,32 @@ function App() {
                     change={changeSettings}
                     disabled={busy}
                   />
+                </section>
+                <section className="settings-card kugou-keys">
+                  <div className="card-heading">
+                    <span><LockKeyhole size={19} /></span>
+                    <div>
+                      <h2>{t("酷狗音乐密钥")}</h2>
+                      <p>{t("KGG / KGM v5 需要对应歌曲的客户端 eKey。KGM v3 和 KWM 无需导入。")}</p>
+                    </div>
+                  </div>
+                  <p className="key-import-help">{t("导入 JSON 对象：以 32 位歌曲哈希为键，以 eKey 为值。密钥仅用于当前页面，刷新后清除，不上传。")}</p>
+                  <div className="key-import-actions">
+                    <button className="secondary-button" disabled={busy} onClick={() => keyInput.current.click()}>
+                      <FolderOpen size={16} />{t("导入密钥 JSON")}
+                    </button>
+                    <span aria-live="polite">{t("已导入 {count} 个密钥", { count: keyCount })}</span>
+                    <button className="subtle-button" disabled={busy || !keyCount} onClick={() => {
+                      engine.current.kugouKeys = Object.create(null);
+                      setKeyCount(0);
+                    }}>{t("清除密钥")}</button>
+                  </div>
+                  <input ref={keyInput} type="file" accept=".json,application/json" hidden aria-label={t("选择酷狗密钥 JSON")}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      importKugouKeys(file);
+                    }} />
                 </section>
                 <section className="settings-card">
                   <div className="card-heading">
@@ -1417,6 +1494,10 @@ function App() {
                       "先在本地提取 NCM 容器中的 MP3 或 FLAC 音频。“原始音频”模式会直接保留内部音频字节。输出格式与内部格式相同，并开启“同格式时保留原音”时，也不重新编码。其他情况使用本地引擎转换。支持常见 NCM 文件，新版加密或损坏文件可能无法读取。",
                     ],
                     [
+                      "酷狗 KGG / KGM 和酷我 KWM 怎样转换？",
+                      "支持常见 KGM v3 和 KWM 文件，先本地提取音频，再按输出设置转换或保留原音。KGG / KGM v5 需要从自己的酷狗客户端取得对应歌曲的 eKey，在“偏好设置”导入歌曲哈希到 eKey 的 JSON 后重试。扩展不会自动读取客户端数据库；密钥仅用于当前页面，刷新后清除。新版加密和损坏文件可能不受支持。",
+                    ],
+                    [
                       "支持 QQ 音乐的 OGG 吗？",
                       "支持普通的 Ogg/Vorbis 和 Ogg/Opus 音频。QQ 音乐下载的 QMC、MFLAC、MGG 等加密格式暂不支持；将加密文件改名为 .ogg 并不能转换。请使用你有权处理的普通音频文件。",
                     ],
@@ -1434,7 +1515,7 @@ function App() {
                     ],
                     [
                       "封面、标签和高解析音频会保留吗？",
-                      "原始音频模式保留音频文件字节。重新编码时保留引擎支持的文字标签，并读取 NCM 的歌曲、歌手与专辑信息；不保证保留封面、歌词及所有特殊标签。MP3 最高支持 48 kHz 和双声道，超出的参数会自动适配。超过 24 位的 FLAC 输出会提示改用 WAV 或原始音频，以避免静默降低精度。",
+                      "可读取的封面会显示在转换结果、历史记录和试听播放器中，转换到 MP3 / FLAC 时嵌入文件，WAV 使用 ID3 封面标签，外部播放器能否显示取决于其支持。原始音频模式保持文件字节不变，NCM 单独存放的封面仅在工作台显示。重新编码保留引擎支持的文字标签，并读取 NCM 的歌曲、歌手与专辑信息；不保证歌词及所有特殊标签。MP3 最高支持 48 kHz 和双声道，超出的参数会自动适配。超过 24 位的 FLAC 输出会提示改用 WAV 或原始音频，以避免静默降低精度。",
                     ],
                   ].map(([q, a]) => (
                     <details key={q}>
@@ -1460,6 +1541,36 @@ function App() {
               </>
             )}
           </div>
+          <section className="preview-player" hidden={!previewTrack} aria-label={t("音乐试听播放器")}>
+            <div className="preview-heading">
+              {previewTrack?.cover
+                ? <FileArtwork cover={previewTrack.cover} />
+                : <Headphones size={18} aria-hidden="true" />}
+              <strong title={previewTrack?.name}>{previewTrack?.name}</strong>
+              <button
+                className="icon-button"
+                onClick={stopPlaying}
+                aria-label={t("关闭试听")}
+                title={t("关闭试听")}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <audio
+              ref={audioRef}
+              controls
+              preload="metadata"
+              aria-label={t("音乐试听播放器")}
+              onPlay={() => setPlaying(previewRef.current?.id ?? null)}
+              onPause={() => setPlaying(null)}
+              onEnded={() => setPlaying(null)}
+              onError={() => {
+                if (!previewRef.current || !audioRef.current.error) return;
+                stopPlaying();
+                notify("浏览器无法试听此格式，下载后可用本地播放器播放。", "error");
+              }}
+            />
+          </section>
           <footer className="main-footer">
             <span className="footer-tagline">
               <AudioLines size={14} aria-hidden="true" />{t("让音乐，自由流动。")}</span>

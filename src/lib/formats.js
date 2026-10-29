@@ -1,5 +1,8 @@
 export const INPUT_FORMATS = [
   "ncm",
+  "kgg",
+  "kgm",
+  "kwm",
   "ogg",
   "flac",
   "wav",
@@ -12,6 +15,7 @@ export const INPUT_FORMATS = [
   "wma",
 ];
 export const ACCEPT = INPUT_FORMATS.map((x) => `.${x}`).join(",");
+export const CONTAINER_FORMATS = ["ncm", "kgg", "kgm", "kwm"];
 export const MAX_FILE_SIZE = 200 * 1024 * 1024;
 export const MAX_QUEUE_SIZE = 512 * 1024 * 1024;
 export const DEFAULT_SETTINGS = {

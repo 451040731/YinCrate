@@ -2,6 +2,7 @@ import { createCipheriv, createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { fixtureHash, makeEkey, makeKgg, makeKgm, makeKwm, mapKey, rc4Key } from "./container-fixtures.mjs";
 
 const coreKey = Buffer.from("hzHRAmso5kInbaxW");
 const metaKey = Buffer.from("2331346c6a6b5f215c5d2630553c2728", "hex");
@@ -16,7 +17,7 @@ function encrypt(input, key) {
 }
 
 // Independent fixture encoder using Node's native AES, not the browser decoder.
-export function makeNcm(audio, format = "mp3", withMetadata = true) {
+export function makeNcm(audio, format = "mp3", withMetadata = true, cover = Buffer.from([0xff, 0xd8, 0xff, 0xd9])) {
   const key = Buffer.from("yincrate-fixture-stream-key");
   const keyData = encrypt(
     Buffer.concat([Buffer.from("neteasecloudmusic"), key]),
@@ -45,7 +46,7 @@ export function makeNcm(audio, format = "mp3", withMetadata = true) {
     const pos = (i + 1) & 255;
     encrypted[i] ^= box[(box[pos] + box[(box[pos] + pos) & 255]) & 255];
   }
-  const cover = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const coverSpace = Math.max(132, cover.length);
   return Buffer.concat([
     Buffer.from("CTENFDAM"),
     Buffer.alloc(2),
@@ -54,10 +55,10 @@ export function makeNcm(audio, format = "mp3", withMetadata = true) {
     u32(metaData.length),
     metaData,
     Buffer.alloc(5),
-    u32(132),
+    u32(coverSpace),
     u32(cover.length),
     cover,
-    Buffer.alloc(132 - cover.length),
+    Buffer.alloc(coverSpace - cover.length),
     encrypted,
   ]);
 }
@@ -161,6 +162,30 @@ export async function createFixtures(dir) {
     path.join(dir, "encrypted.ogg"),
     Buffer.from("This is not a valid OGG audio file."),
   );
+  const { default: sharp } = await import("sharp");
+  const artwork = sharp({ create: { width: 64, height: 64, channels: 3, background: "#2879f4" } });
+  const png = await artwork.clone().png().toBuffer();
+  const jpeg = await artwork.clone().jpeg().toBuffer();
+  await writeFile(path.join(dir, "cover.png"), png);
+  await writeFile(path.join(dir, "cover.jpg"), jpeg);
+  for (const [format, image] of [["mp3", "cover.jpg"], ["flac", "cover.png"], ["m4a", "cover.png"]]) {
+    run(["-i", path.join(dir, `tone.${format}`), "-i", path.join(dir, image),
+      "-map", "0:a:0", "-map", "1:v:0", "-c", "copy", "-disposition:v:0", "attached_pic",
+      path.join(dir, `covered.${format}`)]);
+  }
+  await writeFile(path.join(dir, "external-cover.ncm"),
+    makeNcm(await readFile(path.join(dir, "tone.mp3")), "mp3", true, png));
+  await writeFile(path.join(dir, "embedded-cover.ncm"),
+    makeNcm(await readFile(path.join(dir, "covered.mp3")), "mp3", true, jpeg));
+  const flac = await readFile(path.join(dir, "tone.flac"));
+  const mp3 = await readFile(path.join(dir, "covered.mp3"));
+  await writeFile(path.join(dir, "from-flac.kgm"), makeKgm(flac));
+  await writeFile(path.join(dir, "from-mp3.kwm"), makeKwm(mp3));
+  await writeFile(path.join(dir, "from-flac.kgg"), makeKgg(flac));
+  await writeFile(path.join(dir, "from-rc4.kgg"), makeKgg(flac, rc4Key));
+  await writeFile(path.join(dir, "from-v5.kgm"), makeKgg(flac));
+  await writeFile(path.join(dir, "kugou-keys.json"), JSON.stringify({ [fixtureHash]: makeEkey(mapKey) }));
+  await writeFile(path.join(dir, "kugou-rc4-keys.json"), JSON.stringify({ [fixtureHash]: makeEkey(rc4Key, true) }));
   return dir;
 }
 export function probe(file) {

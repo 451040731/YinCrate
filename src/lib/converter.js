@@ -1,11 +1,12 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { extension, mimeFor, outputArgs, safeName } from "./formats.js";
+import { CONTAINER_FORMATS, extension, mimeFor, outputArgs, safeName } from "./formats.js";
+import { embedWavArtwork, normalizeArtwork, readArtwork } from "./artwork.js";
 
-function decodeNcm(bytes, signal) {
+function decodeContainer(bytes, format, keys, signal) {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL("./ncm.worker.js", import.meta.url), {
-      type: "module",
-    });
+    const worker = format === "ncm"
+      ? new Worker(new URL("./ncm.worker.js", import.meta.url), { type: "module" })
+      : new Worker(new URL("./music-container.worker.js", import.meta.url), { type: "module" });
     const cleanup = () => {
       worker.terminate();
       signal?.removeEventListener("abort", abort);
@@ -20,15 +21,16 @@ function decodeNcm(bytes, signal) {
     };
     worker.onerror = () => {
       cleanup();
-      reject(new Error("NCM 解析器启动失败，请重新加载扩展。"));
+      reject(new Error("音乐解析器启动失败，请重新加载扩展。"));
     };
     signal?.addEventListener("abort", abort, { once: true });
     if (signal?.aborted) return abort();
-    worker.postMessage(bytes, [bytes.buffer]);
+    worker.postMessage(format === "ncm" ? bytes : { bytes, format, keys }, [bytes.buffer]);
   });
 }
 
 export class AudioConverter {
+  kugouKeys = Object.create(null);
   ffmpeg = null;
   currentProgress = null;
   logs = [];
@@ -72,16 +74,20 @@ export class AudioConverter {
     let bytes = new Uint8Array(await file.arrayBuffer());
     let format = extension(file.name),
       metadata = {},
+      cover = null,
       extracted = false;
     signal?.throwIfAborted();
-    if (format === "ncm") {
-      onProgress(3, "正在提取 NCM 原始音频");
-      const ncm = await decodeNcm(bytes, signal);
-      bytes = ncm.audio;
-      format = ncm.format;
-      metadata = ncm.metadata;
+    if (CONTAINER_FORMATS.includes(format)) {
+      onProgress(3, "正在提取原始音频");
+      const container = await decodeContainer(bytes, format, this.kugouKeys, signal);
+      bytes = container.audio;
+      format = container.format;
+      metadata = container.metadata;
+      cover = await normalizeArtwork(new Blob([container.cover]));
       extracted = true;
     }
+    const embeddedCover = await normalizeArtwork(await readArtwork(extracted ? bytes : file));
+    cover = embeddedCover || cover;
     signal?.throwIfAborted();
     const copy =
       settings.format === "original" ||
@@ -91,10 +97,14 @@ export class AudioConverter {
         settings.channels === "source");
     const outputFormat =
       settings.format === "original" ? format : settings.format;
-    if (copy) {
+    // Original mode stays byte-for-byte identical. In normal output modes an
+    // NCM-only cover can be attached while copying the encoded audio stream.
+    const attachNcmCover = copy && extracted && cover && !embeddedCover && settings.format !== "original";
+    if (copy && !attachNcmCover) {
       onProgress(100, "已保留原始音频");
       return {
         blob: new Blob([bytes], { type: mimeFor(outputFormat) }),
+        cover,
         name: safeName(file.name, outputFormat),
         format: outputFormat,
         duration: metadata.duration ? metadata.duration / 1000 : null,
@@ -106,7 +116,8 @@ export class AudioConverter {
     this.currentProgress = onProgress;
     this.logs = [];
     const input = `input.${format}`,
-      output = `output.${outputFormat}`;
+      output = `output.${outputFormat}`,
+      coverFile = cover?.type === "image/jpeg" ? "cover.jpg" : "cover.png";
     let probe;
     try {
       await ffmpeg.writeFile(input, bytes);
@@ -150,19 +161,28 @@ export class AudioConverter {
           (audio.codec_name?.includes("flt") ? 32 : 16),
       };
       // FLAC can represent integer PCM up to 24 bits in this bundled encoder.
-      if (settings.format === "flac" && info.bits > 24)
+      if (!attachNcmCover && settings.format === "flac" && info.bits > 24)
         throw new Error(
           "此音频超过 24 位。为避免降低精度，请选择 WAV 或原始音频输出。",
         );
       if (
-        settings.format === "wav" &&
+        !attachNcmCover && settings.format === "wav" &&
         (/pcm_f(?:32|64)|flt|dbl/.test(audio.codec_name || "") ||
           info.bits > 32)
       )
         throw new Error(
           "浮点或超过 32 位的 PCM 请使用“原始音频”保留精度；当前 WAV 编码适用于 16 / 24 / 32 位整数 PCM。",
         );
-      const args = ["-i", input, "-map", "0:a:0", "-vn", "-map_metadata", "0"];
+      const args = ["-i", input];
+      if (cover && outputFormat !== "wav") {
+        await ffmpeg.writeFile(coverFile, new Uint8Array(await cover.arrayBuffer()));
+        args.push("-i", coverFile);
+      }
+      args.push("-map", "0:a:0", "-map_metadata", "0");
+      if (cover && outputFormat !== "wav")
+        args.push("-map", "1:v:0", "-c:v", "copy", "-disposition:v:0", "attached_pic",
+          "-metadata:s:v:0", "title=Album cover", "-metadata:s:v:0", "comment=Cover (front)");
+      else args.push("-vn");
       if (metadata.musicName)
         args.push("-metadata", `title=${metadata.musicName}`);
       if (Array.isArray(metadata.artist))
@@ -171,7 +191,9 @@ export class AudioConverter {
           `artist=${metadata.artist.map((a) => a[0]).join(" / ")}`,
         );
       if (metadata.album) args.push("-metadata", `album=${metadata.album}`);
-      args.push(...outputArgs(settings, info), "-y", output);
+      args.push(...(attachNcmCover ? ["-c:a", "copy"] : outputArgs(settings, info)));
+      if (attachNcmCover && outputFormat === "mp3") args.push("-id3v2_version", "3");
+      args.push("-y", output);
       onProgress(15, "正在转换");
       const code = await ffmpeg.exec(args);
       signal?.throwIfAborted();
@@ -180,16 +202,20 @@ export class AudioConverter {
           "转换未完成。文件可能已损坏、被加密，或浏览器可用内存不足。",
         );
       const data = await ffmpeg.readFile(output);
-      const blob = new Blob([data], { type: mimeFor(outputFormat) });
+      const blob = cover && outputFormat === "wav"
+        ? await embedWavArtwork(data, cover)
+        : new Blob([data], { type: mimeFor(outputFormat) });
+      signal?.throwIfAborted();
       if (!blob.size) throw new Error("转换结果为空，请检查音源。");
       onProgress(100, "转换完成");
       return {
         blob,
+        cover,
         name: safeName(file.name, outputFormat),
         format: outputFormat,
         duration: Number(probe.format?.duration) || null,
         method:
-          outputFormat === "mp3"
+          attachNcmCover ? "原音提取 · 未重新编码" : outputFormat === "mp3"
             ? `MP3 · ${settings.bitrate} kbps`
             : `${outputFormat.toUpperCase()} · 无损编码`,
       };
@@ -201,7 +227,7 @@ export class AudioConverter {
       this.currentProgress = null;
       if (ffmpeg.loaded)
         await Promise.all(
-          [input, output, "probe.json"].map((path) =>
+          [input, output, coverFile, "probe.json"].map((path) =>
             ffmpeg.deleteFile(path).catch(() => {}),
           ),
         );

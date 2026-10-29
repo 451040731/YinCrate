@@ -32,6 +32,20 @@ const packages = [
   "lie",
   "immediate",
   "setimmediate",
+  "music-metadata",
+  "@borewit/text-codec",
+  "@tokenizer/inflate",
+  "@tokenizer/token",
+  "content-type",
+  "debug",
+  "file-type",
+  "ieee754",
+  "media-typer",
+  "ms",
+  "strtok3",
+  "token-types",
+  "uint8array-extras",
+  "win-guid",
 ];
 for (const pkg of packages) {
   const dir = `node_modules/${pkg}`,
@@ -44,3 +58,5 @@ for (const pkg of packages) {
 }
 console.log("Local audio engine and extension icons prepared.");
 await cp("licenses/FFmpeg-GPL-2.0.txt", "public/licenses/FFmpeg-GPL-2.0.txt");
+for (const file of ["Unlock-Music-MIT.txt", "KGG-Decryptor-MIT.txt", "music-geshizhuanhuan-MIT.txt"])
+  await cp(`licenses/${file}`, `public/licenses/${file}`);
